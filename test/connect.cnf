@@ -1,0 +1,22 @@
+# Example configuration file
+
+# Comment out the next line to ignore configuration errors
+#config_diagnostics = 1
+
+# Connects to the default port of s_server
+Connect = youtube.com:443
+
+# Disable TLS v1.2 for test.
+#Protocol = ALL, -TLSv1.2
+MinProtocol = TLSv1.2
+MaxProtocol = TLSv1.3
+# Only support 3 curves
+#Curves = P-521:P-384:P-256
+
+# Restricted signature algorithms
+#SignatureAlgorithms = RSA+SHA512:ECDSA+SHA512
+
+# Restricted cipher algorithms
+#CipherString = ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES128-GCM-SHA256
+Ciphersuites = TLS_AES_128_GCM_SHA256
+#CipherString = ECC-SM2-SM4-GCM-SM3
