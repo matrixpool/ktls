@@ -26,7 +26,6 @@ int main() {
     // SSL_CTX_enable_sm_tls13_strict(ctx);
     // SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
     // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
-
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("socket");
