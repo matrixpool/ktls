@@ -73,16 +73,16 @@ int main() {
         ssl = SSL_new(ctx);
         SSL_set_fd(ssl, conn_sock);
 
-        long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
-        long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
-        printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
-
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
         } else {
             SSL_write(ssl, "Hello, client!\n", 15);
         }
 
+        long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
+        long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
+        printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
+        
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(conn_sock);
