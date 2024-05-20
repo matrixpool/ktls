@@ -5,8 +5,10 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-// #define SERVER_CERT "/ktls/certs/sign.crt"
-// #define SERVER_KEY "/ktls/certs/sign.key"
+#define SERVER_SIGN_CERT "/ktls/certs/sign.crt"
+#define SERVER_SIGN_KEY "/ktls/certs/sign.key"
+#define SERVER_ECC_CERT "/ktls/certs/enc.crt"
+#define SERVER_ECC_KEY "/ktls/certs/enc.key"
 
 #define SERVER_CERT "/ktls/certs/ecc.crt"
 #define SERVER_KEY "/ktls/certs/ecc.key"
@@ -26,14 +28,23 @@ int main() {
         return 1;
     }
 
+    // SSL_CTX_enable_ntls(ctx);
     // SSL_CTX_enable_sm_tls13_strict(ctx);
-    // SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
-    // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
 
-    SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
+    SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
+    // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
+    // SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
     SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
     SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
+
+    // if (SSL_CTX_use_sign_PrivateKey_file(ctx, SERVER_SIGN_KEY, SSL_FILETYPE_PEM) <= 0 ||
+    //     SSL_CTX_use_sign_certificate_file(ctx, SERVER_SIGN_CERT, SSL_FILETYPE_PEM) <= 0 ||
+    //     SSL_CTX_use_enc_certificate_file(ctx, SERVER_ECC_CERT, SSL_FILETYPE_PEM) <= 0 ||
+    //     SSL_CTX_use_enc_PrivateKey_file(ctx, SERVER_ECC_KEY, SSL_FILETYPE_PEM) <= 0) {
+    //     fprintf(stderr, "Error loading certificate or private key file\n");
+    //     return 1;
+    // }
 
     if (SSL_CTX_use_certificate_file(ctx, SERVER_CERT, SSL_FILETYPE_PEM) <= 0 ||
         SSL_CTX_use_PrivateKey_file(ctx, SERVER_KEY, SSL_FILETYPE_PEM) <= 0) {
@@ -76,13 +87,25 @@ int main() {
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
         } else {
-            SSL_write(ssl, "Hello, client!\n", 15);
+            char buffer[20000];
+            int ret = 0, len = sizeof(buffer);
+
+            memset(buffer, 0x61, len);
+            buffer[len - 1] = '\0';
+            SSL_write(ssl, buffer, len);
+            // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
+            // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
+            // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
+            // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
+            // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
         }
 
         long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
         long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
         printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
         
+        sleep(60);
+
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(conn_sock);
