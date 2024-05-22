@@ -14,3 +14,12 @@ target_link_libraries(gcm_sm4 ssl crypto)
 
 add_executable(gcm_aes gcm_aes.c)
 target_link_libraries(gcm_aes ssl crypto)
+
+add_executable(cbc_aes cbc_aes.c)
+target_link_libraries(cbc_aes ssl crypto)
+
+add_executable(client_ntls client_ntls.c)
+target_link_libraries(client_ntls ssl crypto)
+
+add_executable(server_ntls server_ntls.c)
+target_link_libraries(server_ntls ssl crypto)
