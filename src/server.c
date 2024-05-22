@@ -16,7 +16,7 @@
 int main() {
     SSL_CTX *ctx;
     SSL *ssl;
-    int listen_sock, conn_sock;
+    int listen_sock, conn_sock, ret;
 
     SSL_library_init();
     OpenSSL_add_all_algorithms();
@@ -28,15 +28,17 @@ int main() {
         return 1;
     }
 
-    // SSL_CTX_enable_ntls(ctx);
+    // SSL_CTX_enable_tls(ctx);
     // SSL_CTX_enable_sm_tls13_strict(ctx);
 
-    SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
+    // SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
     // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
     // SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
-    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    
+    // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
     SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
+    ret = SSL_CTX_set_ciphersuites(ctx, "ECDHE-ECDSA-AES128-GCM-SHA256");
 
     // if (SSL_CTX_use_sign_PrivateKey_file(ctx, SERVER_SIGN_KEY, SSL_FILETYPE_PEM) <= 0 ||
     //     SSL_CTX_use_sign_certificate_file(ctx, SERVER_SIGN_CERT, SSL_FILETYPE_PEM) <= 0 ||
@@ -87,12 +89,16 @@ int main() {
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
         } else {
-            char buffer[20000];
+            char buffer[13];
+            char buffer1[32] = {0};
             int ret = 0, len = sizeof(buffer);
 
             memset(buffer, 0x61, len);
-            buffer[len - 1] = '\0';
+            // buffer[len - 1] = '\0';
             SSL_write(ssl, buffer, len);
+            // SSL_read(ssl, buffer1, 32);
+            // printf("client: %s\n", buffer1);
+
             // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
             // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
             // ret = SSL_write(ssl, "hello, openssl client\n", sizeof("hello, openssl client\n"));
@@ -104,7 +110,7 @@ int main() {
         long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
         printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
         
-        sleep(60);
+        // sleep(60);
 
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -116,3 +122,4 @@ int main() {
 
     return 0;
 }
+
