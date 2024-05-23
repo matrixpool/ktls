@@ -103,6 +103,7 @@ int main() {
     unsigned char ciphertext[32] = {0};
     int len = 0, ciphertext_len;
     
+
     // 初始化上下文
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
@@ -110,8 +111,9 @@ int main() {
         return 1;
     }
     
+
     // 初始化加密操作
-    if (!EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL)) {
+    if (!EVP_EncryptInit_ex(ctx, EVP_sm4_gcm(), NULL, NULL, NULL)) {
         fprintf(stderr, "EVP_EncryptInit_ex failed.\n");
         return 1;
     }

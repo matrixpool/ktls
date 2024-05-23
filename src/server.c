@@ -28,17 +28,14 @@ int main() {
         return 1;
     }
 
-    // SSL_CTX_enable_tls(ctx);
     // SSL_CTX_enable_sm_tls13_strict(ctx);
-
-    // SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
-    // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
+    SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
+    SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
     // SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
     
-    // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-    SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
-    ret = SSL_CTX_set_ciphersuites(ctx, "ECDHE-ECDSA-AES128-GCM-SHA256");
+    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
     // if (SSL_CTX_use_sign_PrivateKey_file(ctx, SERVER_SIGN_KEY, SSL_FILETYPE_PEM) <= 0 ||
     //     SSL_CTX_use_sign_certificate_file(ctx, SERVER_SIGN_CERT, SSL_FILETYPE_PEM) <= 0 ||

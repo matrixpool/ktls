@@ -23,8 +23,10 @@ int main() {
     }
     SSL_CTX_enable_ntls(ctx);
 
-    if(SSL_CTX_set_cipher_list(ctx, "ECC-SM2-WITH-SM4-SM3") <= 0)
-        goto err;
+    // if(SSL_CTX_set_cipher_list(ctx, "ECC_SM4_GCM_SM3") <= 0){
+    //     fprintf(stderr, "SSL_CTX_set_cipher_list failed\n");
+    //     return 1;  
+    // }
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -67,6 +69,5 @@ int main() {
     close(sock);
     SSL_CTX_free(ctx);
 
-err: 
     return 0;
 }
