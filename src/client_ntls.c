@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "util.h"
 
 int main() {
     //变量定义
@@ -23,10 +24,11 @@ int main() {
     }
     SSL_CTX_enable_ntls(ctx);
 
-    // if(SSL_CTX_set_cipher_list(ctx, "ECC_SM4_GCM_SM3") <= 0){
-    //     fprintf(stderr, "SSL_CTX_set_cipher_list failed\n");
-    //     return 1;  
-    // }
+    if(SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_GCM_SM3") <= 0){
+        fprintf(stderr, "SSL_CTX_set_cipher_list failed\n");
+        return 1;  
+    }
+    // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -47,9 +49,25 @@ int main() {
     ssl = SSL_new(ctx);
     SSL_set_fd(ssl, sock);
 
-    printf("1 bio flags: 0x%06x\n", BIO_get_flags(SSL_get_wbio(ssl)));
     if (SSL_connect(ssl) <= 0) {
-        ERR_print_errors_fp(stderr);
+        // unsigned char random[64] = {0}, mkey[128] = {0};
+        // size_t len;
+        // len = SSL_get_client_random(ssl, random, 64);
+        // if(len > 0){
+        //     hex_dump(random, len, "CLIENT RANDOM");
+        // }
+        // memset(random, 0, 64);
+        // len = SSL_get_server_random(ssl, random, 64);
+        // if(len > 0){
+        //     hex_dump(random, len, "SERVER RANDOM");
+        // }
+        
+        // SSL_SESSION *session = SSL_get_session(ssl);
+        // SSL_SESSION_get_master_key(session, mkey, 128);
+        // if(len > 0){
+        //     hex_dump(mkey, 128, "MASTER KEY");
+        // }
+        ERR_print_errors_fp(stderr);        
     } else {
         char buf[4096];
         char buf1[17];

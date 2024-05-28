@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "util.h"
 
 #define SERVER_SIGN_CERT "/ktls/certs/sign.crt"
 #define SERVER_SIGN_KEY "/ktls/certs/sign.key"
@@ -85,7 +86,7 @@ int main() {
         SSL_set_fd(ssl, conn_sock);
 
         if (SSL_accept(ssl) <= 0) {
-            ERR_print_errors_fp(stderr);
+            ERR_print_errors_fp(stderr);  
         } else {
             char buffer[13];
             char buffer1[32] = {0};

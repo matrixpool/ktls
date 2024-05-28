@@ -168,18 +168,7 @@ int main() {
     }
     printf("\n");
 
-    // unsigned char plaintext[17];
-    // memset(plaintext, 0x61, sizeof(plaintext));
-    // unsigned char ciphertext[sizeof(plaintext)];
-    // unsigned char decryptedtext[sizeof(plaintext)];
-    // int ciphertext_len, decryptedtext_len;
 
-    // decryptedtext_len = decrypt(ciphertext, ciphertext_len, tag, key, iv, decryptedtext);
-    // printf("decryptedtext is:\n");
-    // for (int i = 0; i < decryptedtext_len; i++) {
-    //     printf("%02x", decryptedtext[i]);
-    // }
-    // printf("\n");
     
     // 清理
     EVP_CIPHER_CTX_free(ctx);

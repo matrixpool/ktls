@@ -21,8 +21,11 @@ target_link_libraries(server_ntls ssl crypto)
 
 # add_executable(aead_afalg aead_afalg.c)
 
-# add_executable(gcm_sm4 gcm_sm4.c)
-# target_link_libraries(gcm_sm4 ssl crypto)
+add_executable(gcm_sm4 gcm_sm4.c)
+target_link_libraries(gcm_sm4 ssl crypto)
+
+add_executable(gcm_sm4_dec gcm_sm4_dec.c)
+target_link_libraries(gcm_sm4_dec ssl crypto)
 
 # add_executable(gcm_aes gcm_aes.c)
 # target_link_libraries(gcm_aes ssl crypto)
