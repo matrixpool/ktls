@@ -88,7 +88,7 @@ int main() {
             // }
             ERR_print_errors_fp(stderr);
         } else {
-            char buffer[10];
+            char buffer[17000];
             memset(buffer, 0x61, sizeof(buffer));
             SSL_write(ssl, buffer, sizeof(buffer));
         }

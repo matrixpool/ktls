@@ -6,13 +6,17 @@
 #include <openssl/err.h>
 #include "util.h"
 
-int main() {
+int main(int argc, char *argv[]) {
     //变量定义
     const SSL_METHOD *meth = NULL;
     SSL_CTX *ctx = NULL;
     SSL *ssl;
     int sock;
 
+    if(argc <= 1){
+        printf("please input tls server addr\n");
+        return 0;
+    }
     SSL_library_init();
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
@@ -28,7 +32,7 @@ int main() {
         fprintf(stderr, "SSL_CTX_set_cipher_list failed\n");
         return 1;  
     }
-    // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -39,7 +43,7 @@ int main() {
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(4433); // 使用非标准端口 4433
-    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+    inet_pton(AF_INET, argv[1], &addr.sin_addr);
 
     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("connect");
@@ -69,10 +73,7 @@ int main() {
         // }
         ERR_print_errors_fp(stderr);        
     } else {
-        char buf[4096];
-        char buf1[17];
-        memset(buf1, 0x62, 17);
-        printf("2 bio flags: 0x%06x\n", BIO_get_flags(SSL_get_wbio(ssl)));
+        char buf[18000] = {0};
         long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
         long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
         printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
