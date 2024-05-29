@@ -6,6 +6,10 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 find_package(KernelHeaders)
 
+if(DEFINED KERNEL)
+    find_package(X86_64Linux)
+endif()
+
 set(CMAKE_C_FLAGS "-O0 -g -ggdb")
 set(CPU "x86_64")
 
@@ -15,5 +19,5 @@ link_directories(lib64)
 
 #subdir
 add_subdirectory(src)
-# add_subdirectory(modules)
+add_subdirectory(modules)
 add_subdirectory(test)

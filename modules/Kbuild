@@ -1,2 +1,2 @@
-obj-m := tls.o
-tls-y := tls_main.o tls_sw.o tls_proc.o tls_toe.o tls_device.o tls_device_fallback.o trace.o
+obj-m := authenctls.o
+authenctls-y := authenc_tls.o

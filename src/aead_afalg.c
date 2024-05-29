@@ -13,7 +13,7 @@ int aead_hmac_cbc(const uint8_t *key, const uint8_t *iv, const uint8_t *hmac_key
     struct sockaddr_alg alg = {
         .salg_family = AF_ALG,
         .salg_type = "aead",
-        .salg_name = "authenc(hmac(sha256),cbc(aes))",
+        .salg_name = "authenctls(hmac(sm3),cbc(sm4))",
     };
 
     int ret = 0;
