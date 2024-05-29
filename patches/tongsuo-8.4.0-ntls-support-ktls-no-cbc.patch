@@ -1,0 +1,281 @@
+diff -ruN Tongsuo-8.4.0/crypto/bio/bio_lib.c Tongsuo-8.4.0-ntls-ktls-nogit/crypto/bio/bio_lib.c
+--- Tongsuo-8.4.0/crypto/bio/bio_lib.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/crypto/bio/bio_lib.c	2024-05-29 06:08:40.141639074 +0000
+@@ -13,6 +13,7 @@
+ #include <errno.h>
+ #include <openssl/crypto.h>
+ #include "bio_local.h"
++#include "internal/util.h"
+ 
+ /*
+  * Helper macro for the callback to determine whether an operator expects a
+diff -ruN Tongsuo-8.4.0/crypto/bio/bss_sock.c Tongsuo-8.4.0-ntls-ktls-nogit/crypto/bio/bss_sock.c
+--- Tongsuo-8.4.0/crypto/bio/bss_sock.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/crypto/bio/bss_sock.c	2024-05-29 06:08:40.141639074 +0000
+@@ -120,6 +120,7 @@
+                 b->flags |= BIO_FLAGS_IN_EOF;
+         }
+     }
++    
+     return ret;
+ }
+ 
+diff -ruN Tongsuo-8.4.0/crypto/rand/rand_lib.c Tongsuo-8.4.0-ntls-ktls-nogit/crypto/rand/rand_lib.c
+--- Tongsuo-8.4.0/crypto/rand/rand_lib.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/crypto/rand/rand_lib.c	2024-05-29 06:08:40.157638897 +0000
+@@ -29,6 +29,7 @@
+ # include "crypto/rand_pool.h"
+ # include "prov/seeding.h"
+ # include "internal/e_os.h"
++#include "internal/util.h"
+ 
+ # ifndef OPENSSL_NO_ENGINE
+ /* non-NULL if default_RAND_meth is ENGINE-provided */
+@@ -348,6 +349,7 @@
+                   unsigned int strength)
+ {
+     EVP_RAND_CTX *rand;
++    int bytes = 0;
+ #if !defined(OPENSSL_NO_DEPRECATED_3_0) && !defined(FIPS_MODULE)
+     const RAND_METHOD *meth = RAND_get_rand_method();
+ 
+diff -ruN Tongsuo-8.4.0/include/internal/ktls.h Tongsuo-8.4.0-ntls-ktls-nogit/include/internal/ktls.h
+--- Tongsuo-8.4.0/include/internal/ktls.h	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/include/internal/ktls.h	2024-05-29 06:08:40.189638542 +0000
+@@ -220,6 +220,9 @@
+ #       define OPENSSL_KTLS_CHACHA20_POLY1305
+ #      endif
+ #     endif
++#     if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
++#       define OPENSSL_KTLS_SM4_GCM_128
++#     endif
+ #    endif
+ #   endif
+ 
+@@ -229,6 +232,7 @@
+ #   include <openssl/ssl3.h>
+ #   include <openssl/tls1.h>
+ #   include <openssl/evp.h>
++#   include "internal/util.h"
+ 
+ #   ifndef SOL_TLS
+ #    define SOL_TLS 282
+@@ -247,6 +251,9 @@
+ #   ifdef OPENSSL_KTLS_AES_GCM_128
+         struct tls12_crypto_info_aes_gcm_128 gcm128;
+ #   endif
++#   ifdef OPENSSL_KTLS_SM4_GCM_128
++        struct ntls_crypto_info_sm4_gcm_128 sm4gcm128;
++#   endif
+ #   ifdef OPENSSL_KTLS_AES_GCM_256
+         struct tls12_crypto_info_aes_gcm_256 gcm256;
+ #   endif
+@@ -385,8 +392,10 @@
+         cmsg = CMSG_FIRSTHDR(&msg);
+         if (cmsg->cmsg_type == TLS_GET_RECORD_TYPE) {
+             p[0] = *((unsigned char *)CMSG_DATA(cmsg));
++/*
+             p[1] = TLS1_2_VERSION_MAJOR;
+             p[2] = TLS1_2_VERSION_MINOR;
++*/
+             /* returned length is limited to msg_iov.iov_len above */
+             p[3] = (ret >> 8) & 0xff;
+             p[4] = ret & 0xff;
+diff -ruN Tongsuo-8.4.0/include/internal/util.h Tongsuo-8.4.0-ntls-ktls-nogit/include/internal/util.h
+--- Tongsuo-8.4.0/include/internal/util.h	1970-01-01 00:00:00.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/include/internal/util.h	2024-05-29 06:16:39.225048598 +0000
+@@ -0,0 +1,33 @@
++#ifndef __UTIL_H_
++#define __UTIL_H_
++
++#include <stddef.h>
++#include <stdio.h>
++#include <string.h>
++
++static void hex_dump(const void *p_buf, size_t len, const char *p_title)
++{
++    int i = 0;
++	const unsigned char *p_data = (unsigned char *)p_buf;
++	int remain_len = len, print_len = 0, count = 0;
++	char linebuf[128] = { 0 };
++
++	fprintf(stdout, "DUMP BUFFER %s HEX LENGTH:%lu\n", p_title, len);
++	
++	do
++	{
++		print_len = remain_len > 16 ? 16 : remain_len;
++		for (i = 0; i < print_len; i++)
++		{
++			sprintf(linebuf + i * 3, "%02x ", (unsigned char)p_data[count * 16 + i]);
++		}
++		fprintf(stdout, "%s\n", linebuf);
++		memset(linebuf, 0, 128);
++		remain_len -= print_len;
++		count++;
++	}
++	while (remain_len);
++}
++
++#endif
++
+diff -ruN Tongsuo-8.4.0/ssl/ktls.c Tongsuo-8.4.0-ntls-ktls-nogit/ssl/ktls.c
+--- Tongsuo-8.4.0/ssl/ktls.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/ssl/ktls.c	2024-05-29 06:08:40.301637302 +0000
+@@ -9,6 +9,7 @@
+ 
+ #include "ssl_local.h"
+ #include "internal/ktls.h"
++#include "internal/util.h"
+ 
+ #if defined(__FreeBSD__)
+ # include "crypto/cryptodev.h"
+@@ -119,6 +120,7 @@
+                                 const EVP_CIPHER_CTX *dd)
+ {
+     switch (s->version) {
++    case NTLS1_1_VERSION:
+     case TLS1_2_VERSION:
+     case TLS1_3_VERSION:
+         break;
+@@ -141,6 +143,9 @@
+ # ifdef OPENSSL_KTLS_AES_GCM_128
+         || EVP_CIPHER_is_a(c, "AES-128-GCM")
+ # endif
++# ifdef OPENSSL_KTLS_SM4_GCM_128
++        || EVP_CIPHER_is_a(c, "SM4-GCM")
++# endif
+ # ifdef OPENSSL_KTLS_AES_GCM_256
+         || EVP_CIPHER_is_a(c, "AES-256-GCM")
+ # endif
+@@ -160,10 +165,10 @@
+                           unsigned char *key, unsigned char *mac_key,
+                           size_t mac_secret_size)
+ {
+-    unsigned char geniv[12];
++    unsigned char geniv[12] = {0};
+     unsigned char *iiv = iv;
+ 
+-    if (s->version == TLS1_2_VERSION &&
++    if ((s->version == TLS1_2_VERSION || s->version == NTLS1_1_VERSION) &&
+         EVP_CIPHER_get_mode(c) == EVP_CIPH_GCM_MODE) {
+         if (!EVP_CIPHER_CTX_get_updated_iv(dd, geniv,
+                                            EVP_GCM_TLS_FIXED_IV_LEN
+@@ -190,6 +195,21 @@
+             *rec_seq = crypto_info->gcm128.rec_seq;
+         return 1;
+ # endif
++# ifdef OPENSSL_KTLS_SM4_GCM_128
++    case NID_sm4_gcm:
++        crypto_info->sm4gcm128.info.cipher_type = TLS_CIPHER_SM4_GCM_128;
++        crypto_info->sm4gcm128.info.version = s->version;
++        crypto_info->tls_crypto_info_len = sizeof(crypto_info->sm4gcm128);
++        memcpy(crypto_info->sm4gcm128.iv, iiv + EVP_GCM_TLS_FIXED_IV_LEN,
++               TLS_CIPHER_SM4_GCM_128_IV_SIZE);
++        memcpy(crypto_info->sm4gcm128.salt, iiv, TLS_CIPHER_SM4_GCM_128_SALT_SIZE);
++        memcpy(crypto_info->sm4gcm128.key, key, EVP_CIPHER_get_key_length(c));
++        memcpy(crypto_info->sm4gcm128.rec_seq, rl_sequence,
++               TLS_CIPHER_SM4_GCM_128_REC_SEQ_SIZE);
++        if (rec_seq != NULL)
++            *rec_seq = crypto_info->sm4gcm128.rec_seq;
++        return 1;
++# endif
+ # ifdef OPENSSL_KTLS_AES_GCM_256
+     case NID_aes_256_gcm:
+         crypto_info->gcm256.info.cipher_type = TLS_CIPHER_AES_GCM_256;
+@@ -203,6 +223,7 @@
+                TLS_CIPHER_AES_GCM_256_REC_SEQ_SIZE);
+         if (rec_seq != NULL)
+             *rec_seq = crypto_info->gcm256.rec_seq;
++
+         return 1;
+ # endif
+ # ifdef OPENSSL_KTLS_AES_CCM_128
+diff -ruN Tongsuo-8.4.0/ssl/record/rec_layer_s3.c Tongsuo-8.4.0-ntls-ktls-nogit/ssl/record/rec_layer_s3.c
+--- Tongsuo-8.4.0/ssl/record/rec_layer_s3.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/ssl/record/rec_layer_s3.c	2024-05-29 06:08:40.305637258 +0000
+@@ -16,6 +16,7 @@
+ #include <openssl/rand.h>
+ #include "record_local.h"
+ #include "internal/packet.h"
++#include "internal/util.h"
+ 
+ #if     defined(OPENSSL_SMALL_FOOTPRINT) || \
+         !(      defined(AES_ASM) &&     ( \
+@@ -1192,6 +1193,7 @@
+                     return i;
+                 BIO_set_ktls_ctrl_msg(s->wbio, type);
+             }
++    
+             i = BIO_write(s->wbio, (char *)
+                           &(SSL3_BUFFER_get_buf(&wb[currbuf])
+                             [SSL3_BUFFER_get_offset(&wb[currbuf])]),
+diff -ruN Tongsuo-8.4.0/ssl/record/ssl3_record.c Tongsuo-8.4.0-ntls-ktls-nogit/ssl/record/ssl3_record.c
+--- Tongsuo-8.4.0/ssl/record/ssl3_record.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/ssl/record/ssl3_record.c	2024-05-29 06:08:40.309637213 +0000
+@@ -14,6 +14,7 @@
+ #include "record_local.h"
+ #include "internal/cryptlib.h"
+ 
++
+ static const unsigned char ssl3_pad_1[48] = {
+     0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36,
+     0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36,
+@@ -861,6 +862,7 @@
+     size_t bs;
+     const EVP_CIPHER *enc;
+ 
++    
+     rec = inrecs;
+     /*
+      * We shouldn't ever be called with more than one record in the SSLv3 case
+diff -ruN Tongsuo-8.4.0/ssl/statem_ntls/ntls_statem_lib.c Tongsuo-8.4.0-ntls-ktls-nogit/ssl/statem_ntls/ntls_statem_lib.c
+--- Tongsuo-8.4.0/ssl/statem_ntls/ntls_statem_lib.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/ssl/statem_ntls/ntls_statem_lib.c	2024-05-29 06:08:40.325637035 +0000
+@@ -22,6 +22,7 @@
+ #include <openssl/x509v3.h>
+ #include <openssl/trace.h>
+ #include "internal/sockets.h"
++#include "internal/util.h"
+ 
+ static int ssl_add_cert_to_wpacket_ntls(SSL *s, WPACKET *pkt, X509 *x);
+ /*
+@@ -531,7 +532,7 @@
+         SSLfatal_ntls(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+         return MSG_PROCESS_ERROR;
+     }
+-
++    
+     return MSG_PROCESS_CONTINUE_READING;
+ }
+ 
+@@ -539,7 +540,6 @@
+ {
+     size_t md_len;
+ 
+-
+     /* This is a real handshake so make sure we clean it up at the end */
+     if (s->server) {
+         /*
+diff -ruN Tongsuo-8.4.0/ssl/t1_enc.c Tongsuo-8.4.0-ntls-ktls-nogit/ssl/t1_enc.c
+--- Tongsuo-8.4.0/ssl/t1_enc.c	2023-12-14 09:21:43.000000000 +0000
++++ Tongsuo-8.4.0-ntls-ktls-nogit/ssl/t1_enc.c	2024-05-29 06:08:40.329636992 +0000
+@@ -21,6 +21,11 @@
+ #include <openssl/core_names.h>
+ #include <openssl/trace.h>
+ 
++#include "internal/util.h"
++#include <openssl/bio.h>
++#include "internal/util.h"
++
++
+ /* seed1 through seed5 are concatenated */
+ static int tls1_PRF(SSL *s,
+                     const void *seed1, size_t seed1_len,
+@@ -597,6 +602,7 @@
+         /* SSLfatal() already called */
+         return 0;
+     }
++
+     OPENSSL_cleanse(hash, hashlen);
+     return finished_size;
+ }

@@ -1,0 +1,138 @@
+diff -ruN linux-6.6.31/include/uapi/linux/tls.h linux-6.6.31-ntls-ktls/include/uapi/linux/tls.h
+--- linux-6.6.31/include/uapi/linux/tls.h	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31-ntls-ktls/include/uapi/linux/tls.h	2024-05-23 07:24:39.439443389 +0000
+@@ -57,6 +57,10 @@
+ #define TLS_1_3_VERSION_MINOR	0x4
+ #define TLS_1_3_VERSION		TLS_VERSION_NUMBER(TLS_1_3)
+ 
++#define NTLS_VERSION_MAJOR	0x1
++#define NTLS_VERSION_MINOR	0x1
++#define NTLS_VERSION		TLS_VERSION_NUMBER(NTLS)
++
+ /* Supported ciphers */
+ #define TLS_CIPHER_AES_GCM_128				51
+ #define TLS_CIPHER_AES_GCM_128_IV_SIZE			8
+diff -ruN linux-6.6.31/net/tls/tls.h linux-6.6.31-ntls-ktls/net/tls/tls.h
+--- linux-6.6.31/net/tls/tls.h	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31-ntls-ktls/net/tls/tls.h	2024-05-29 03:47:54.604188404 +0000
+@@ -347,8 +347,13 @@
+ 	buf[0] = prot->version == TLS_1_3_VERSION ?
+ 		   TLS_RECORD_TYPE_DATA : record_type;
+ 	/* Note that VERSION must be TLS_1_2 for both TLS1.2 and TLS1.3 */
+-	buf[1] = TLS_1_2_VERSION_MINOR;
+-	buf[2] = TLS_1_2_VERSION_MAJOR;
++	if(prot->version == NTLS_VERSION){
++		buf[1] = NTLS_VERSION_MINOR;
++		buf[2] = NTLS_VERSION_MAJOR;
++	}else{
++		buf[1] = TLS_1_2_VERSION_MINOR;
++		buf[2] = TLS_1_2_VERSION_MAJOR;
++	}
+ 	/* we can use IV for nonce explicit according to spec */
+ 	buf[3] = pkt_len >> 8;
+ 	buf[4] = pkt_len & 0xFF;
+@@ -367,8 +372,14 @@
+ 
+ 	buf[0] = prot->version == TLS_1_3_VERSION ?
+ 		  TLS_RECORD_TYPE_DATA : record_type;
+-	buf[1] = TLS_1_2_VERSION_MAJOR;
+-	buf[2] = TLS_1_2_VERSION_MINOR;
++	
++	if(prot->version == NTLS_VERSION){
++		buf[1] = NTLS_VERSION_MAJOR;
++		buf[2] = NTLS_VERSION_MINOR;
++	}else{
++		buf[1] = TLS_1_2_VERSION_MAJOR;
++		buf[2] = TLS_1_2_VERSION_MINOR;
++	}
+ 	buf[3] = size >> 8;
+ 	buf[4] = size & 0xFF;
+ }
+diff -ruN linux-6.6.31/net/tls/tls_main.c linux-6.6.31-ntls-ktls/net/tls/tls_main.c
+--- linux-6.6.31/net/tls/tls_main.c	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31-ntls-ktls/net/tls/tls_main.c	2024-05-29 03:27:50.068007335 +0000
+@@ -617,7 +617,8 @@
+ 	}
+ 
+ 	/* check version */
+-	if (crypto_info->version != TLS_1_2_VERSION &&
++	if (crypto_info->version != NTLS_VERSION &&
++		crypto_info->version != TLS_1_2_VERSION &&
+ 	    crypto_info->version != TLS_1_3_VERSION) {
+ 		rc = -EINVAL;
+ 		goto err_crypto_info;
+@@ -660,7 +661,7 @@
+ 		rc = -EFAULT;
+ 		goto err_crypto_info;
+ 	}
+-
++	
+ 	if (tx) {
+ 		rc = tls_set_device_offload(sk, ctx);
+ 		conf = TLS_HW;
+@@ -702,9 +703,9 @@
+ 		sk->sk_write_space = tls_write_space;
+ 	} else {
+ 		struct tls_sw_context_rx *rx_ctx = tls_sw_ctx_rx(ctx);
+-
+ 		tls_strp_check_rcv(&rx_ctx->strp);
+ 	}
++	
+ 	return 0;
+ 
+ err_crypto_info:
+diff -ruN linux-6.6.31/net/tls/tls_strp.c linux-6.6.31-ntls-ktls/net/tls/tls_strp.c
+--- linux-6.6.31/net/tls/tls_strp.c	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31-ntls-ktls/net/tls/tls_strp.c	2024-05-29 02:59:44.368754146 +0000
+@@ -520,7 +520,6 @@
+ 		}
+ 
+ 		strp->stm.full_len = sz;
+-
+ 		if (!strp->stm.full_len || inq < strp->stm.full_len)
+ 			return tls_strp_read_copy(strp, true);
+ 	}
+diff -ruN linux-6.6.31/net/tls/tls_sw.c linux-6.6.31-ntls-ktls/net/tls/tls_sw.c
+--- linux-6.6.31/net/tls/tls_sw.c	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31-ntls-ktls/net/tls/tls_sw.c	2024-05-29 03:28:46.991493004 +0000
+@@ -1972,13 +1972,14 @@
+ 	bool released = true;
+ 	bool bpf_strp_enabled;
+ 	bool zc_capable;
+-
++	
+ 	if (unlikely(flags & MSG_ERRQUEUE))
+ 		return sock_recv_errqueue(sk, msg, len, SOL_IP, IP_RECVERR);
+ 
+ 	err = tls_rx_reader_lock(sk, ctx, flags & MSG_DONTWAIT);
+ 	if (err < 0)
+ 		return err;
++
+ 	psock = sk_psock_get(sk);
+ 	bpf_strp_enabled = sk_psock_strp_enabled(psock);
+ 
+@@ -2008,6 +2009,7 @@
+ 
+ 		err = tls_rx_rec_wait(sk, psock, flags & MSG_DONTWAIT,
+ 				      released);
++
+ 		if (err <= 0) {
+ 			if (psock) {
+ 				chunk = sk_msg_recvmsg(sk, psock, msg, len,
+@@ -2400,11 +2402,11 @@
+ 	}
+ 
+ 	/* Note that both TLS1.3 and TLS1.2 use TLS_1_2 version here */
+-	if (header[1] != TLS_1_2_VERSION_MINOR ||
+-	    header[2] != TLS_1_2_VERSION_MAJOR) {
+-		ret = -EINVAL;
+-		goto read_failure;
+-	}
++	// if (header[1] != TLS_1_2_VERSION_MINOR ||
++	//     header[2] != TLS_1_2_VERSION_MAJOR) {
++	// 	ret = -EINVAL;
++	// 	goto read_failure;
++	// }
+ 
+ 	tls_device_rx_resync_new_rec(strp->sk, data_len + TLS_HEADER_SIZE,
+ 				     TCP_SKB_CB(skb)->seq + strp->stm.offset);
