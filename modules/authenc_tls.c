@@ -49,10 +49,13 @@ int crypto_authenc_tls_extractkeys(struct crypto_authenc_keys *keys, const u8 *k
 	struct rtattr *rta = (struct rtattr *)key;
 	struct crypto_authenc_key_param *param;
 
+	printk("crypto_authenc_tls_extractkeys ......1: %d\n", keylen);
 	if (!RTA_OK(rta, keylen))
 		return -EINVAL;
+	printk("crypto_authenc_tls_extractkeys ......2\n");
 	if (rta->rta_type != CRYPTO_AUTHENC_KEYA_PARAM)
 		return -EINVAL;
+	printk("crypto_authenc_tls_extractkeys ......3\n");
 
 	/*
 	 * RTA_OK() didn't align the rtattr's payload when validating that it
@@ -63,6 +66,7 @@ int crypto_authenc_tls_extractkeys(struct crypto_authenc_keys *keys, const u8 *k
 	if (RTA_PAYLOAD(rta) != sizeof(*param))
 		return -EINVAL;
 	BUILD_BUG_ON(sizeof(*param) % RTA_ALIGNTO);
+	printk("crypto_authenc_tls_extractkeys ......4\n");
 
 	param = RTA_DATA(rta);
 	keys->enckeylen = be32_to_cpu(param->enckeylen);
@@ -72,6 +76,7 @@ int crypto_authenc_tls_extractkeys(struct crypto_authenc_keys *keys, const u8 *k
 
 	if (keylen < keys->enckeylen)
 		return -EINVAL;
+	printk("crypto_authenc_tls_extractkeys ......5\n");
 
 	keys->authkeylen = keylen - keys->enckeylen;
 	keys->authkey = key;
