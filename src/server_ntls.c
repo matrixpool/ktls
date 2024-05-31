@@ -26,7 +26,7 @@ int main() {
     SSL_CTX_enable_ntls(ctx);
 
     flags1 = SSL_CTX_get_options(ctx);
-    flags2 = SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    // flags2 = SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
 
     if (SSL_CTX_use_sign_PrivateKey_file(ctx, SERVER_SIGN_KEY, SSL_FILETYPE_PEM) <= 0 ||
         SSL_CTX_use_sign_certificate_file(ctx, SERVER_SIGN_CERT, SSL_FILETYPE_PEM) <= 0 ||
@@ -88,8 +88,10 @@ int main() {
             // }
             ERR_print_errors_fp(stderr);
         } else {
-            char buffer[17000];
+            char buffer[17];
             memset(buffer, 0x61, sizeof(buffer));
+            SSL_write(ssl, buffer, sizeof(buffer));
+            SSL_write(ssl, NULL, 0);
             SSL_write(ssl, buffer, sizeof(buffer));
         }
 

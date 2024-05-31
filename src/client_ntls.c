@@ -28,11 +28,12 @@ int main(int argc, char *argv[]) {
     }
     SSL_CTX_enable_ntls(ctx);
 
-    if(SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_GCM_SM3") <= 0){
+    // if(SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_GCM_SM3") <= 0){
+    if(SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_CBC_SM3") <= 0){
         fprintf(stderr, "SSL_CTX_set_cipher_list failed\n");
         return 1;  
     }
-    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
