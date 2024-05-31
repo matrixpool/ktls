@@ -29,6 +29,10 @@ target_link_libraries(gcm_sm4_dec ssl crypto)
 
 add_executable(gcm_sm4_error gcm_sm4_error.c)
 target_link_libraries(gcm_sm4_error ssl crypto)
+
+add_executable(authenc_sm3_sm4 authenc_sm3_sm4.c)
+target_link_libraries(authenc_sm3_sm4 ssl crypto)
+
 # add_executable(gcm_aes gcm_aes.c)
 # target_link_libraries(gcm_aes ssl crypto)
 
