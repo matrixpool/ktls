@@ -220,13 +220,13 @@ void hmac_sm3_data2(){
 }
 
 int main(){
-    cbc_decrypt_data1();
-    hmac_sm3_data1();
+    // cbc_decrypt_data1();
+    // hmac_sm3_data1();
 
-    cbc_decrypt_data2();
+    // cbc_decrypt_data2();
     hmac_sm3_data2();
 
-    cbc_encrypt_data2();
+    // cbc_encrypt_data2();
 
     return 0;
 }

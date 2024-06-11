@@ -36,10 +36,9 @@ target_link_libraries(authenc_sm3_sm4 ssl crypto)
 add_executable(cbc_sm3_sm4 cbc_sm3_sm4.c)
 target_link_libraries(cbc_sm3_sm4 ssl crypto)
 
-
 add_executable(xor xor.c)
 target_link_libraries(xor ssl crypto)
 
-# add_executable(cbc_aes cbc_aes.c)
-# target_link_libraries(cbc_aes ssl crypto)
+add_executable(authenctls_afalg authenctls_afalg.c)
+target_link_libraries(authenctls_afalg)
 

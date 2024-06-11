@@ -2,6 +2,9 @@
 # Module info
 add_definitions(-D__KERNEL__ -DMODULE)
 
+set(HMAC_SM3_NAME hmacsm3)
+set(HMAC_SM3_MODULE_FILE ${HMAC_SM3_NAME}.ko)
+
 set(AUTHENC_TLS_NAME authenctls)
 set(AUTHENC_TLS_MODULE_FILE ${AUTHENC_TLS_NAME}.ko)
 set(
@@ -11,11 +14,13 @@ set(
 	src=${CMAKE_CURRENT_SOURCE_DIR}
 )
 set(AUTHENC_TLS_OBJS "authenc_tls.o")
+set(HMAC_SM3_OBJS "hmac_sm3.o")
 
 FILE(
 	WRITE 
 	${CMAKE_CURRENT_SOURCE_DIR}/Kbuild 
-	"obj-m := ${AUTHENC_TLS_NAME}.o\n${AUTHENC_TLS_NAME}-y := ${AUTHENC_TLS_OBJS}"
+	"obj-m := ${AUTHENC_TLS_NAME}.o ${HMAC_SM3_NAME}.o\n${AUTHENC_TLS_NAME}-y := ${AUTHENC_TLS_OBJS}\n"
+		"${HMAC_SM3_NAME}-y := ${HMAC_SM3_OBJS}"
 )
 
 add_custom_command(OUTPUT ${AUTHENC_TLS_MODULE_FILE}
@@ -24,6 +29,16 @@ add_custom_command(OUTPUT ${AUTHENC_TLS_MODULE_FILE}
 	DEPENDS ${SRC_LISTS} VERBATIM
 )
 
+add_custom_command(OUTPUT ${HMAC_SM3_MODULE_FILE}
+	COMMAND ${KBUILD_CMD}
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+	DEPENDS ${SRC_LISTS} VERBATIM
+)
+
+add_custom_target(hmacsm3-module ALL DEPENDS ${HMAC_SM3_MODULE_FILE})
+add_custom_target(hmacsm3-module-clean COMMAND ${KBUILD_CMD} clean)
+
 add_custom_target(authenctls-module ALL DEPENDS ${AUTHENC_TLS_MODULE_FILE})
 add_custom_target(authenctls-module-clean COMMAND ${KBUILD_CMD} clean)
+
 

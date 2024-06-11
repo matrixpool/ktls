@@ -1,2 +1,3 @@
-obj-m := authenctls.o
+obj-m := authenctls.o hmacsm3.o
 authenctls-y := authenc_tls.o
+hmacsm3-y := hmac_sm3.o

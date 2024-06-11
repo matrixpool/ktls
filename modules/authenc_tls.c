@@ -49,13 +49,10 @@ int crypto_authenc_tls_extractkeys(struct crypto_authenc_keys *keys, const u8 *k
 	struct rtattr *rta = (struct rtattr *)key;
 	struct crypto_authenc_key_param *param;
 
-	printk("crypto_authenc_tls_extractkeys ......1: %d\n", keylen);
 	if (!RTA_OK(rta, keylen))
 		return -EINVAL;
-	printk("crypto_authenc_tls_extractkeys ......2\n");
 	if (rta->rta_type != CRYPTO_AUTHENC_KEYA_PARAM)
 		return -EINVAL;
-	printk("crypto_authenc_tls_extractkeys ......3\n");
 
 	/*
 	 * RTA_OK() didn't align the rtattr's payload when validating that it
@@ -66,7 +63,6 @@ int crypto_authenc_tls_extractkeys(struct crypto_authenc_keys *keys, const u8 *k
 	if (RTA_PAYLOAD(rta) != sizeof(*param))
 		return -EINVAL;
 	BUILD_BUG_ON(sizeof(*param) % RTA_ALIGNTO);
-	printk("crypto_authenc_tls_extractkeys ......4\n");
 
 	param = RTA_DATA(rta);
 	keys->enckeylen = be32_to_cpu(param->enckeylen);
@@ -76,7 +72,6 @@ int crypto_authenc_tls_extractkeys(struct crypto_authenc_keys *keys, const u8 *k
 
 	if (keylen < keys->enckeylen)
 		return -EINVAL;
-	printk("crypto_authenc_tls_extractkeys ......5\n");
 
 	keys->authkeylen = keylen - keys->enckeylen;
 	keys->authkey = key;
@@ -104,7 +99,7 @@ static int crypto_authenc_tls_setkey(struct crypto_aead *authenc, const u8 *key,
 	err = crypto_ahash_setkey(auth, keys.authkey, keys.authkeylen);
 	if (err)
 		goto out;
-
+	
 	crypto_skcipher_clear_flags(enc, CRYPTO_TFM_REQ_MASK);
 	crypto_skcipher_set_flags(enc, crypto_aead_get_flags(authenc) &
 				       CRYPTO_TFM_REQ_MASK);
@@ -134,7 +129,66 @@ out:
 	aead_request_complete(req, err);
 }
 
-static int crypto_authenc_tls_genicv(struct aead_request *req, unsigned int flags)
+// static int crypto_authenc_tls_genicv(struct aead_request *req, unsigned int flags)
+// {
+// 	struct crypto_aead *authenc = crypto_aead_reqtfm(req);
+// 	struct aead_instance *inst = aead_alg_instance(authenc);
+// 	struct crypto_authenc_tls_ctx *ctx = crypto_aead_ctx(authenc);
+// 	struct authenc_tls_instance_ctx *ictx = aead_instance_ctx(inst);
+// 	struct crypto_ahash *auth = ctx->auth;
+// 	struct authenc_tls_request_ctx *areq_ctx = aead_request_ctx(req);
+// 	struct ahash_request *ahreq = (void *)(areq_ctx->tail + ictx->reqoff);
+// 	u8 *hash = areq_ctx->tail;
+// 	int err;
+
+// 	hash = (u8 *)ALIGN((unsigned long)hash + crypto_ahash_alignmask(auth),
+// 			   crypto_ahash_alignmask(auth) + 1);
+
+// 	ahash_request_set_tfm(ahreq, auth);
+// 	ahash_request_set_crypt(ahreq, req->dst, hash,
+// 				req->assoclen + req->cryptlen);
+// 	ahash_request_set_callback(ahreq, flags,
+// 				   authenc_tls_geniv_ahash_done, req);
+
+// 	err = crypto_ahash_digest(ahreq);
+// 	if (err)
+// 		return err;
+
+// 	scatterwalk_map_and_copy(hash, req->dst, req->assoclen + req->cryptlen,
+// 				 crypto_aead_authsize(authenc), 1);
+
+// 	return 0;
+// }
+
+// static void crypto_authenc_tls_encrypt_done(void *data, int err)
+// {
+// 	struct aead_request *areq = data;
+
+// 	if (err)
+// 		goto out;
+
+// 	err = crypto_authenc_tls_genicv(areq, 0);
+
+// out:
+// 	authenc_tls_request_complete(areq, err);
+// }
+
+// static int crypto_authenc_tls_copy_assoc(struct aead_request *req)
+// {
+// 	struct crypto_aead *authenc = crypto_aead_reqtfm(req);
+// 	struct crypto_authenc_tls_ctx *ctx = crypto_aead_ctx(authenc);
+// 	SYNC_SKCIPHER_REQUEST_ON_STACK(skreq, ctx->null);
+
+// 	skcipher_request_set_sync_tfm(skreq, ctx->null);
+// 	skcipher_request_set_callback(skreq, aead_request_flags(req),
+// 				      NULL, NULL);
+// 	skcipher_request_set_crypt(skreq, req->src, req->dst, req->assoclen,
+// 				   NULL);
+
+// 	return crypto_skcipher_encrypt(skreq);
+// }
+
+static int crypto_authenc_tls_encrypt(struct aead_request *req)
 {
 	struct crypto_aead *authenc = crypto_aead_reqtfm(req);
 	struct aead_instance *inst = aead_alg_instance(authenc);
@@ -150,84 +204,73 @@ static int crypto_authenc_tls_genicv(struct aead_request *req, unsigned int flag
 			   crypto_ahash_alignmask(auth) + 1);
 
 	ahash_request_set_tfm(ahreq, auth);
-	ahash_request_set_crypt(ahreq, req->dst, hash,
+	ahash_request_set_crypt(ahreq, req->src, hash,
 				req->assoclen + req->cryptlen);
-	ahash_request_set_callback(ahreq, flags,
+	ahash_request_set_callback(ahreq, aead_request_flags(req),
 				   authenc_tls_geniv_ahash_done, req);
 
 	err = crypto_ahash_digest(ahreq);
 	if (err)
 		return err;
+	
+	void *data = sg_virt(req->dst);
+	print_hex_dump(KERN_INFO, "BEFORE", 2, 16, 1, data, req->dst->length, false);
 
 	scatterwalk_map_and_copy(hash, req->dst, req->assoclen + req->cryptlen,
 				 crypto_aead_authsize(authenc), 1);
+	
+	data = sg_virt(req->dst);
+	print_hex_dump(KERN_INFO, "AFTER", 2, 16, 1, data, req->dst->length, false);
 
 	return 0;
-}
+	// struct crypto_aead *authenc = crypto_aead_reqtfm(req);
+	// struct aead_instance *inst = aead_alg_instance(authenc);
+	// struct crypto_authenc_tls_ctx *ctx = crypto_aead_ctx(authenc);
+	// struct authenc_tls_instance_ctx *ictx = aead_instance_ctx(inst);
+	// struct authenc_tls_request_ctx *areq_ctx = aead_request_ctx(req);
+	// struct crypto_skcipher *enc = ctx->enc;
+	// unsigned int cryptlen = req->cryptlen;
+	// struct skcipher_request *skreq = (void *)(areq_ctx->tail +
+	// 					  ictx->reqoff);
+	// struct scatterlist *src, *dst;
+	// int err;
 
-static void crypto_authenc_tls_encrypt_done(void *data, int err)
-{
-	struct aead_request *areq = data;
+	// u8 *data;
+	// data = sg_virt(req->src);
+	// print_hex_dump(KERN_INFO, "FIRST 1", 2, 16, 1, data, req->src->length, false);
 
-	if (err)
-		goto out;
+	// src = scatterwalk_ffwd(areq_ctx->src, req->src, req->assoclen);
+	// dst = src;
 
-	err = crypto_authenc_tls_genicv(areq, 0);
+	// if (req->src != req->dst) {
+	// 	err = crypto_authenc_tls_copy_assoc(req);
+	// 	if (err)
+	// 		return err;
 
-out:
-	authenc_tls_request_complete(areq, err);
-}
+	// 	dst = scatterwalk_ffwd(areq_ctx->dst, req->dst, req->assoclen);
+	// }
 
-static int crypto_authenc_tls_copy_assoc(struct aead_request *req)
-{
-	struct crypto_aead *authenc = crypto_aead_reqtfm(req);
-	struct crypto_authenc_tls_ctx *ctx = crypto_aead_ctx(authenc);
-	SYNC_SKCIPHER_REQUEST_ON_STACK(skreq, ctx->null);
+	// // tmp = src;
+	// // data = sg_virt(tmp);
+	// // print_hex_dump(KERN_INFO, "FIRST 2", 2, 16, 1, data, tmp->length, false);
+	// // tmp = sg_next(tmp);
+	// // if(tmp){
+	// // 	data = sg_virt(tmp);
+	// // 	print_hex_dump(KERN_INFO, "FIRST 2", 2, 16, 1, data, tmp->length, false);		
+	// // }
 
-	skcipher_request_set_sync_tfm(skreq, ctx->null);
-	skcipher_request_set_callback(skreq, aead_request_flags(req),
-				      NULL, NULL);
-	skcipher_request_set_crypt(skreq, req->src, req->dst, req->assoclen,
-				   NULL);
+	// skcipher_request_set_tfm(skreq, enc);
+	// skcipher_request_set_callback(skreq, aead_request_flags(req),
+	// 			      crypto_authenc_tls_encrypt_done, req);
+	// skcipher_request_set_crypt(skreq, src, dst, cryptlen, req->iv);
 
-	return crypto_skcipher_encrypt(skreq);
-}
+	// err = crypto_skcipher_encrypt(skreq);
+	// if (err)
+	// 	return err;
 
-static int crypto_authenc_tls_encrypt(struct aead_request *req)
-{
-	struct crypto_aead *authenc = crypto_aead_reqtfm(req);
-	struct aead_instance *inst = aead_alg_instance(authenc);
-	struct crypto_authenc_tls_ctx *ctx = crypto_aead_ctx(authenc);
-	struct authenc_tls_instance_ctx *ictx = aead_instance_ctx(inst);
-	struct authenc_tls_request_ctx *areq_ctx = aead_request_ctx(req);
-	struct crypto_skcipher *enc = ctx->enc;
-	unsigned int cryptlen = req->cryptlen;
-	struct skcipher_request *skreq = (void *)(areq_ctx->tail +
-						  ictx->reqoff);
-	struct scatterlist *src, *dst;
-	int err;
+	// printk("flags: %d\n", aead_request_flags(req));
 
-	src = scatterwalk_ffwd(areq_ctx->src, req->src, req->assoclen);
-	dst = src;
-
-	if (req->src != req->dst) {
-		err = crypto_authenc_tls_copy_assoc(req);
-		if (err)
-			return err;
-
-		dst = scatterwalk_ffwd(areq_ctx->dst, req->dst, req->assoclen);
-	}
-
-	skcipher_request_set_tfm(skreq, enc);
-	skcipher_request_set_callback(skreq, aead_request_flags(req),
-				      crypto_authenc_tls_encrypt_done, req);
-	skcipher_request_set_crypt(skreq, src, dst, cryptlen, req->iv);
-
-	err = crypto_skcipher_encrypt(skreq);
-	if (err)
-		return err;
-
-	return crypto_authenc_tls_genicv(req, aead_request_flags(req));
+	// return crypto_authenc_tls_genicv(req, aead_request_flags(req));
 }
 
 static int crypto_authenc_tls_decrypt_tail(struct aead_request *req,
