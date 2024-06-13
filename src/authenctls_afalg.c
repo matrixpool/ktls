@@ -26,7 +26,7 @@ void authenctls_sm3_sm4(){
     uint8_t plaintext[] = {
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 
-        0x61
+        0x61, 
     };
 
     uint8_t hmac_key[] = {
@@ -61,7 +61,7 @@ void authenctls_sm3_sm4(){
     struct cmsghdr *cmsg;
     struct msghdr msg = {0};
     int ivlen = 16;
-    uint8_t ciphertext[13 + 17 + 32] = {0};
+    uint8_t ciphertext[13 + 32 + 32] = {0};
     char cbuf[
         CMSG_SPACE(sizeof(int)) + CMSG_SPACE(sizeof(struct af_alg_iv) + 16) + CMSG_SPACE(sizeof(int))] = {0};
     ssize_t len;
