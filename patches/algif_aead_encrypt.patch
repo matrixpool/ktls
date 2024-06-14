@@ -1,0 +1,30 @@
+--- linux-6.6.31/crypto/algif_aead.c	2024-06-14 10:40:18.921282549 +0000
++++ linux-6.6.31-tiny/crypto/algif_aead.c	2024-05-17 10:02:40.000000000 +0000
+@@ -105,7 +105,6 @@ static int _aead_recvmsg(struct socket *
+ 	size_t outlen = 0;		/* [out] RX bufs produced by kernel */
+ 	size_t usedpages = 0;		/* [in]  RX bufs to be used from user */
+ 	size_t processed = 0;		/* [in]  TX bufs to be consumed */
+-	unsigned int blocksize, paddingsize = 0;
+ 
+ 	if (!ctx->init || ctx->more) {
+ 		err = af_alg_wait_for_data(sk, flags, 0);
+@@ -150,10 +149,6 @@ static int _aead_recvmsg(struct socket *
+ 	 */
+ 	used -= ctx->aead_assoclen;
+ 
+-	/* calc padding size */
+-	blocksize = crypto_aead_blocksize(tfm);
+-	paddingsize = blocksize - used % blocksize;
+-
+ 	/* Allocate cipher request for current operation. */
+ 	areq = af_alg_alloc_areq(sk, sizeof(struct af_alg_async_req) +
+ 				     crypto_aead_reqsize(tfm));
+@@ -161,7 +156,7 @@ static int _aead_recvmsg(struct socket *
+ 		return PTR_ERR(areq);
+ 
+ 	/* convert iovecs of output buffers into RX SGL */
+-	err = af_alg_get_rsgl(sk, msg, flags, areq, outlen + paddingsize, &usedpages);
++	err = af_alg_get_rsgl(sk, msg, flags, areq, outlen, &usedpages);
+ 	if (err)
+ 		goto free;
+ 
