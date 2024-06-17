@@ -1,0 +1,102 @@
+diff -uprN linux-6.6.31-tiny/crypto/af_alg.c linux-6.6.31/crypto/af_alg.c
+--- linux-6.6.31-tiny/crypto/af_alg.c	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31/crypto/af_alg.c	2024-06-17 02:54:03.729277485 +0000
+@@ -1043,7 +1043,6 @@ int af_alg_sendmsg(struct socket *sock,
+ 				.nents		= sgl->cur,
+ 				.orig_nents	= sgl->cur,
+ 			};
+-
+ 			plen = extract_iter_to_sg(&msg->msg_iter, len, &sgtable,
+ 						  MAX_SGL_ENTS - sgl->cur, 0);
+ 			if (plen < 0) {
+@@ -1092,7 +1091,6 @@ int af_alg_sendmsg(struct socket *sock,
+ 
+ 			ctx->merge = plen & (PAGE_SIZE - 1);
+ 		}
+-
+ 		if (!size)
+ 			sg_mark_end(sg + sgl->cur - 1);
+ 	}
+@@ -1236,7 +1234,6 @@ int af_alg_get_rsgl(struct sock *sk, str
+ 	struct alg_sock *ask = alg_sk(sk);
+ 	struct af_alg_ctx *ctx = ask->private;
+ 	size_t len = 0;
+-
+ 	while (maxsize > len && msg_data_left(msg)) {
+ 		struct af_alg_rsgl *rsgl;
+ 		ssize_t err;
+diff -uprN linux-6.6.31-tiny/crypto/algif_aead.c linux-6.6.31/crypto/algif_aead.c
+--- linux-6.6.31-tiny/crypto/algif_aead.c	2024-05-17 10:02:40.000000000 +0000
++++ linux-6.6.31/crypto/algif_aead.c	2024-06-17 07:30:48.208929458 +0000
+@@ -105,6 +105,7 @@ static int _aead_recvmsg(struct socket *
+ 	size_t outlen = 0;		/* [out] RX bufs produced by kernel */
+ 	size_t usedpages = 0;		/* [in]  RX bufs to be used from user */
+ 	size_t processed = 0;		/* [in]  TX bufs to be consumed */
++	unsigned int blocksize, paddingsize = 0;
+ 
+ 	if (!ctx->init || ctx->more) {
+ 		err = af_alg_wait_for_data(sk, flags, 0);
+@@ -131,6 +132,15 @@ static int _aead_recvmsg(struct socket *
+ 		return -EINVAL;
+ 
+ 	/*
++	 * The cipher operation input data is reduced by the associated data
++	 * length as this data is processed separately later on.
++	 */
++	used -= ctx->aead_assoclen;
++
++	/* calc padding size */
++	blocksize = crypto_aead_blocksize(tfm);
++	paddingsize = blocksize - used % blocksize;
++	/*
+ 	 * Calculate the minimum output buffer size holding the result of the
+ 	 * cipher operation. When encrypting data, the receiving buffer is
+ 	 * larger by the tag length compared to the input buffer as the
+@@ -139,27 +149,28 @@ static int _aead_recvmsg(struct socket *
+ 	 * plaintext without a buffer for the tag returned to the caller.
+ 	 */
+ 	if (ctx->enc)
+-		outlen = used + as;
++		outlen = ctx->used + as + paddingsize;
+ 	else
+-		outlen = used - as;
+-
+-	/*
+-	 * The cipher operation input data is reduced by the associated data
+-	 * length as this data is processed separately later on.
+-	 */
+-	used -= ctx->aead_assoclen;
+-
++		outlen = ctx->used;
++	
+ 	/* Allocate cipher request for current operation. */
+ 	areq = af_alg_alloc_areq(sk, sizeof(struct af_alg_async_req) +
+ 				     crypto_aead_reqsize(tfm));
+ 	if (IS_ERR(areq))
+ 		return PTR_ERR(areq);
+-
+-	/* convert iovecs of output buffers into RX SGL */
++	
+ 	err = af_alg_get_rsgl(sk, msg, flags, areq, outlen, &usedpages);
+ 	if (err)
+ 		goto free;
+ 
++	/* ensure enough memory to recv */	
++	if(ctx->enc){
++		int len = ctx->used + as + paddingsize;
++		if(usedpages < len){
++			err = -EINVAL;
++			goto free;
++		}
++	}
+ 	/*
+ 	 * Ensure output buffer is sufficiently large. If the caller provides
+ 	 * less buffer space, only use the relative required input size. This
+@@ -242,6 +253,7 @@ static int _aead_recvmsg(struct socket *
+ 		 */
+ 
+ 		 /* Copy AAD || CT to RX SGL buffer for in-place operation. */
++		
+ 		err = crypto_aead_copy_sgl(null_tfm, tsgl_src,
+ 					   areq->first_rsgl.sgl.sgt.sgl,
+ 					   outlen);

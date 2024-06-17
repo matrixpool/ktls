@@ -42,7 +42,7 @@ void authenctls_encrypt_sm3_sm4(){
         .salg_type = "aead",
         .salg_name = "authenctls(hmac(sm3),cbc(sm4))" 
     };
-    struct iovec iov;
+    struct iovec iov[2];
     struct cmsghdr *cmsg;
     struct msghdr msg = {0};
     int ivlen = 16;
@@ -71,10 +71,13 @@ void authenctls_encrypt_sm3_sm4(){
     ret = setsockopt(opfd, SOL_ALG, ALG_SET_KEY, akey, rta_len);
     tfmfd = accept(opfd, NULL, 0);
 
-    iov.iov_base = plain;
-    iov.iov_len = sizeof(aad) + sizeof(plaintext);
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
+    iov[0].iov_base = aad;
+    iov[0].iov_len = sizeof(aad);
+    iov[1].iov_base = plaintext;
+    iov[1].iov_len = sizeof(plaintext);
+    
+    msg.msg_iov = iov;
+    msg.msg_iovlen = 2;
     msg.msg_control = cbuf;
     msg.msg_controllen = sizeof(cbuf);
 
@@ -259,7 +262,7 @@ int main(){
     int encrypted_count = 1;
 
     start = clock();
-    authenctls_encrypt_sm3_sm4();
+    // authenctls_encrypt_sm3_sm4();
     authenctls_decrypt_sm3_sm4();
     end = clock();
 
