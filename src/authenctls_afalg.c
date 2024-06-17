@@ -178,7 +178,7 @@ void authenctls_decrypt_sm3_sm4(){
     int ret = 0;
     struct rtattr *rt;
     int rta_len = RTA_LENGTH(48 + 4);
-    unsigned char plain[13 + 32] = {0};
+    unsigned char plain[13 + 32 + 32] = {0};
     unsigned char *akey = malloc(rta_len);
     memset(akey, 0, rta_len);
 
@@ -260,7 +260,7 @@ int main(){
 
     start = clock();
     authenctls_encrypt_sm3_sm4();
-    // authenctls_decrypt_sm3_sm4();
+    authenctls_decrypt_sm3_sm4();
     end = clock();
 
     time = end - start;

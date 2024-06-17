@@ -296,6 +296,7 @@ static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 
 	/* padding length */
 	scatterwalk_map_and_copy(&padding_length, req->dst, req->assoclen + req->cryptlen - 1, 1, 0);
+	padding_length += 1;
 	plain_length = req->cryptlen - authsize - padding_length;
 
 	/* origin hash */
@@ -304,6 +305,7 @@ static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 	ahash_request_set_tfm(ahreq, auth);
 	ahash_request_set_crypt(ahreq, req->dst, hash,
 				req->assoclen + plain_length);
+
 	ahash_request_set_callback(ahreq, aead_request_flags(req),
 				      authenc_tls_verify_ahash_tail_done, req);
 
@@ -315,19 +317,6 @@ static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 		return -EBADMSG;
 
 	return 0;
-
-	// unsigned char padding_size = *(char *)(sg_virt(req->src) + req->assoclen + req->cryptlen - 1) + 1;
-	// u8 *hash = sg_virt(req->src) + req->assoclen + req->cryptlen - padding_size - authsize;
-	// int err;
-	// printk("%d %d\n", req->cryptlen, padding_size);
-
-	// hash = (u8 *)ALIGN((unsigned long)hash + crypto_ahash_alignmask(auth),
-	// 		   crypto_ahash_alignmask(auth) + 1);
-
-	// print_hex_dump(KERN_INFO, "BEFORE HASH", 2, 16,
-	// 		1, hash, authsize, 1);
-	// print_hex_dump(KERN_INFO, "AFTER HASH", 2, 16,
-	// 		1, ahreq->result, authsize, 1);
 }
 
 static void authenc_tls_decrypt_data_done(void *data, int err)
@@ -353,7 +342,7 @@ static int crypto_authenc_tls_decrypt(struct aead_request *req)
 						  ictx->reqoff);
 	struct scatterlist *src, *dst;
 	int err;
-	
+
 	src = scatterwalk_ffwd(areq_ctx->src, req->src, req->assoclen);
 	dst = src;
 
@@ -376,21 +365,6 @@ static int crypto_authenc_tls_decrypt(struct aead_request *req)
 		return err;
 
 	return crypto_authenc_tls_verify_ahash_tail(req, aead_request_flags(req));
-
-	// print_hex_dump(KERN_INFO, "AUTHENCTLS DST", 2, 16,
-	// 		1, sg_virt(src), src->length + 32, 1);
-
-
-
-	// printk("===== %d   %d\n", dst->length, req->dst->length);
-	// print_hex_dump(KERN_INFO, "AUTHENCTLS SRC", 2, 16,
-	// 		1, sg_virt(src), src->length, 1);
-	// print_hex_dump(KERN_INFO, "AUTHENCTLS DST", 2, 16,
-	// 		1, sg_virt(dst), dst->length, 1);
-
-
-	// printk("cryptlen: %d\n", req->cryptlen);
-
 }
 
 static int crypto_authenc_tls_init_tfm(struct crypto_aead *tfm)
