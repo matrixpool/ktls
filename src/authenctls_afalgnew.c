@@ -189,8 +189,6 @@ int main(){
     end = clock();
 
     time = end - start;
-
-    time = end - start;
     printf("authenctls(sm3,sm4) time: %05fS\n", time / CLOCKS_PER_SEC);
     printf("authenctls(sm3,sm4) speed: %06fMbps\n", calc_speed(encrypted_count, end - start));
 

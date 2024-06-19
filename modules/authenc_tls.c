@@ -274,6 +274,15 @@ out:
 	authenc_tls_request_complete(req, err);
 }
 
+static void print_sg(struct scatterlist *sg){
+	struct scatterlist *s = sg;
+	while(s){
+		print_hex_dump(KERN_INFO, "OOOOOOOOOOOOOOO", 2, 16,
+			1, sg_virt(s), s->length, 1);
+		s = sg_next(s);
+	}
+}
+
 static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 				       unsigned int flags)
 {
@@ -294,10 +303,16 @@ static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 			   crypto_ahash_alignmask(auth) + 1);
  	hash = ihash + authsize;
 
-	/* padding length */
+	/* get padding length */
 	scatterwalk_map_and_copy(&padding_length, req->dst, req->assoclen + req->cryptlen - 1, 1, 0);
 	padding_length += 1;
 	plain_length = req->cryptlen - authsize - padding_length;
+
+	/**
+	 * TLS CBC encryption mode involves encrypting after padding, it is not possible to
+	 * obtain the plaintext length in advance during decryption.
+	 *  */ 
+	scatterwalk_map_and_copy(&plain_length, req->dst, req->assoclen - 1, 1, 1);
 
 	/* origin hash */
 	scatterwalk_map_and_copy(ihash, req->dst, req->assoclen + plain_length, authsize, 0);
@@ -359,6 +374,12 @@ static int crypto_authenc_tls_decrypt(struct aead_request *req)
 				    authenc_tls_decrypt_data_done, req);
 	skcipher_request_set_crypt(skreq, src, dst,
 				   req->cryptlen, req->iv);
+
+	printk("req->crytlen: %d\n", req->cryptlen);
+	print_hex_dump(KERN_INFO, "IV", 2, 16,
+			1, req->iv, 16, 1);
+	print_hex_dump(KERN_INFO, "CIPHERTEXT", 2, 16,
+			1, sg_virt(src), src->length, 1);
 
 	err = crypto_skcipher_decrypt(skreq);
 	if (err)

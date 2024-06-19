@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <sys/types.h>
 #include "util.h"
 
 #define SERVER_SIGN_CERT "/ktls/certs/sign.crt"
@@ -18,6 +19,7 @@ int main() {
     SSL *ssl = NULL;
     int listen_sock, conn_sock, ret, flags1, flags2;
 
+    printf("PID: %d\n", (int)getpid());
     //双证书相关server的各种定义
     meth = NTLS_server_method();
     //生成上下文
@@ -26,7 +28,7 @@ int main() {
     SSL_CTX_enable_ntls(ctx);
 
     flags1 = SSL_CTX_get_options(ctx);
-    // flags2 = SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    flags2 = SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
 
     if (SSL_CTX_use_sign_PrivateKey_file(ctx, SERVER_SIGN_KEY, SSL_FILETYPE_PEM) <= 0 ||
         SSL_CTX_use_sign_certificate_file(ctx, SERVER_SIGN_CERT, SSL_FILETYPE_PEM) <= 0 ||
@@ -90,9 +92,9 @@ int main() {
         } else {
             char buffer[17];
             memset(buffer, 0x61, sizeof(buffer));
-            SSL_write(ssl, buffer, sizeof(buffer));
-            SSL_write(ssl, NULL, 0);
-            SSL_write(ssl, buffer, sizeof(buffer));
+            SSL_read(ssl, buffer, sizeof(buffer));
+            // SSL_write(ssl, NULL, 0);
+            // SSL_write(ssl, buffer, sizeof(buffer));
         }
 
         long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));

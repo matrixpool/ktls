@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <sys/types.h>
 #include "util.h"
 
 int main(int argc, char *argv[]) {
@@ -13,7 +14,7 @@ int main(int argc, char *argv[]) {
     SSL *ssl;
     int sock;
 
-    if(argc <= 1){
+    if(argc <= 2){
         printf("please input tls server addr\n");
         return 0;
     }
@@ -28,11 +29,13 @@ int main(int argc, char *argv[]) {
     }
     SSL_CTX_enable_ntls(ctx);
 
-    // if(SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_GCM_SM3") <= 0){
-    if(SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_CBC_SM3") <= 0){
-        fprintf(stderr, "SSL_CTX_set_cipher_list failed\n");
-        return 1;  
+    if(strncmp(argv[2], "cbc", strlen("cbc")) == 0){
+        SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_CBC_SM3");
     }
+    else{
+        SSL_CTX_set_ciphersuites(ctx, "ECC_SM4_GCM_SM3");
+    }
+
     // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -72,14 +75,14 @@ int main(int argc, char *argv[]) {
         // if(len > 0){
         //     hex_dump(mkey, 128, "MASTER KEY");
         // }
-        ERR_print_errors_fp(stderr);        
+        ERR_print_errors_fp(stderr);
     } else {
-        char buf[18000] = {0};
+        char buf[17] = {0};
         long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
         long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
         printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
-
-        SSL_read(ssl, buf, sizeof(buf));
+        memset(buf, 0x61, 17);
+        SSL_write(ssl, buf, sizeof(buf));
         printf("Received from server: %s\n", buf);
 
     }
