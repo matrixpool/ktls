@@ -274,15 +274,6 @@ out:
 	authenc_tls_request_complete(req, err);
 }
 
-static void print_sg(struct scatterlist *sg){
-	struct scatterlist *s = sg;
-	while(s){
-		print_hex_dump(KERN_INFO, "OOOOOOOOOOOOOOO", 2, 16,
-			1, sg_virt(s), s->length, 1);
-		s = sg_next(s);
-	}
-}
-
 static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 				       unsigned int flags)
 {
@@ -374,12 +365,6 @@ static int crypto_authenc_tls_decrypt(struct aead_request *req)
 				    authenc_tls_decrypt_data_done, req);
 	skcipher_request_set_crypt(skreq, src, dst,
 				   req->cryptlen, req->iv);
-
-	printk("req->crytlen: %d\n", req->cryptlen);
-	print_hex_dump(KERN_INFO, "IV", 2, 16,
-			1, req->iv, 16, 1);
-	print_hex_dump(KERN_INFO, "CIPHERTEXT", 2, 16,
-			1, sg_virt(src), src->length, 1);
 
 	err = crypto_skcipher_decrypt(skreq);
 	if (err)
