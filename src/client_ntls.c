@@ -77,15 +77,19 @@ int main(int argc, char *argv[]) {
         // }
         ERR_print_errors_fp(stderr);
     } else {
-        char buf[17] = {0};
+        char buf[5000] = {0}, buf1[5001] = {0};
+        int err;
         long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
         long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
         printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
-        memset(buf, 0x61, 17);
-        SSL_write(ssl, buf, sizeof(buf));
-        printf("Received from server: %s\n", buf);
-
+        memset(buf, 0x61, sizeof(buf));
+        while(1){
+            SSL_write(ssl, buf, sizeof(buf));
+            err = SSL_read(ssl, buf1, sizeof(buf1));
+        }
+        printf("Received from server: %s\n", buf1);
     }
+        sleep(10000);
 
     SSL_shutdown(ssl);
     SSL_free(ssl);

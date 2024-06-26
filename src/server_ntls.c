@@ -19,7 +19,6 @@ int main() {
     SSL *ssl = NULL;
     int listen_sock, conn_sock, ret, flags1, flags2;
 
-    printf("PID: %d\n", (int)getpid());
     //双证书相关server的各种定义
     meth = NTLS_server_method();
     //生成上下文
@@ -69,7 +68,9 @@ int main() {
 
         ssl = SSL_new(ctx);
         SSL_set_fd(ssl, conn_sock);
-
+        long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
+        long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
+        printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
         if (SSL_accept(ssl) <= 0) {
             // unsigned char random[64] = {0}, mkey[128] = {0};
             // size_t len;
@@ -90,22 +91,20 @@ int main() {
             // }
             ERR_print_errors_fp(stderr);
         } else {
-            char buffer[17];
-            memset(buffer, 0x61, sizeof(buffer));
-            SSL_read(ssl, buffer, sizeof(buffer));
-            // SSL_write(ssl, NULL, 0);
-            // SSL_write(ssl, buffer, sizeof(buffer));
+            char buffer[5001] = {0}, buf1[5000] = {0};
+            memset(buf1, 0x62, sizeof(buf1));
+            while(1){
+                SSL_read(ssl, buffer, sizeof(buffer));
+                // printf("receive data: %s\n", buffer);
+                SSL_write(ssl, buf1, sizeof(buf1));
+            }
         }
 
-        long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
-        long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
-        printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
-        
-        // sleep(60);
+        // sleep(10);
 
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        close(conn_sock);
+        // SSL_shutdown(ssl);
+        // SSL_free(ssl);
+        // close(conn_sock);
     }
 
     close(listen_sock);
