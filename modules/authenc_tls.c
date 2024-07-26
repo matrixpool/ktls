@@ -18,6 +18,7 @@
 #include <linux/rtnetlink.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/mm.h>
 
 struct authenc_tls_instance_ctx {
 	struct crypto_ahash_spawn auth;
@@ -32,38 +33,24 @@ struct crypto_authenc_tls_ctx {
 };
 
 struct authenc_tls_request_ctx {
-	struct scatterlist *nsg;
 	struct scatterlist src[2];
 	struct scatterlist dst[2];
 	char tail[];
 };
 
-// static int get_sg_length(struct scatterlist *sg){
-// 	int length = 0, i = 0;
-// 	while(sg){
-// 		length += sg->length;
-// 		if(sg_is_chain(sg)){
-// 			printk("sg %i is chain\n", i);
-// 		}
-// 		if(sg_is_last(sg)){
-// 			printk("sg %i is end\n", i);
-// 		}
-// 		printk("length:%d offset: %d page_link: 0x%lx\n", sg->length, sg->offset, sg->page_link);
-// 		sg = sg_next(sg);
-// 		i++;
-// 	}
-
-// 	return length;
-// }
-
-// static void print_sg(struct scatterlist *sg, char *title){
-// 	struct scatterlist *s = sg;
-// 	while(s){
-// 		print_hex_dump(KERN_INFO, title, 2, 16,
-// 			1, sg_virt(s), s->length, 1);
-// 		s = sg_next(s);
-// 	}
-// }
+#if 0
+static void print_sg(struct scatterlist *sg, char *title, int print){
+	struct scatterlist *s = sg;
+	while(s){
+		if(print & 0x01)
+			print_hex_dump(KERN_INFO, title, 2, 16,
+				1, sg_virt(s), s->length, 0);
+		if(print & 0x02)
+			printk("%s: sg addr: %p length: %d\n", title, sg_virt(s), s->length);
+		s = sg_next(s);
+	}
+}
+#endif
 
 static void authenc_tls_request_complete(struct aead_request *req, int err)
 {
@@ -140,12 +127,7 @@ out:
 static void crypto_authenc_tls_encrypt_data_done(void *data, int err)
 {
 	struct aead_request *req = data;
-	struct authenc_tls_request_ctx *areq_ctx = aead_request_ctx(req);
-	if (err)
-		goto out;
 
-out:
-	kfree(areq_ctx->nsg);
 	authenc_tls_request_complete(req, err);
 }
 
@@ -198,7 +180,6 @@ static int crypto_authenc_tls_encrypt_data(struct aead_request *req, unsigned in
 
 	/* add padding */
 	req->cryptlen += crypto_authenc_tls_encrypt_padding(req);
-	// print_sg(req->dst, "PLAINTEXT");
 
 	src = scatterwalk_ffwd(areq_ctx->src, req->src, req->assoclen);
 	dst = src;
@@ -212,17 +193,13 @@ static int crypto_authenc_tls_encrypt_data(struct aead_request *req, unsigned in
 	}
 
 	skcipher_request_set_tfm(skreq, enc);
-	skcipher_request_set_callback(skreq, aead_request_flags(req),
+	skcipher_request_set_callback(skreq, flags,
 				crypto_authenc_tls_encrypt_data_done, req);
 	skcipher_request_set_crypt(skreq, src, dst, req->cryptlen, req->iv);
 
 	err = crypto_skcipher_encrypt(skreq);
 	if (err)
 		return err;
-
-	kfree(areq_ctx->nsg);
-
-	// print_sg(req->dst, "CIPHERTEXT");
 
 	return 0;
 }
@@ -243,28 +220,11 @@ static void authenc_tls_genicv_ahash_done(void *data, int err)
 				 req->assoclen + req->cryptlen,
 				 crypto_aead_authsize(authenc), 1);
 	req->cryptlen += crypto_aead_authsize(authenc);
+
+	err = crypto_authenc_tls_encrypt_data(req, aead_request_flags(req));
 	
 out:
-	crypto_authenc_tls_encrypt_data(req, aead_request_flags(req));
-}
-
-static void authenc_tls_extend_src_sg(struct aead_request *req, u8 *buf, int buflen){
-	struct authenc_tls_request_ctx *areq_ctx = aead_request_ctx(req);
-	int nents = sg_nents(req->src) + 1;
-	struct scatterlist *sg = req->src;
-
-	areq_ctx->nsg = kmalloc_array(nents, sizeof(struct scatterlist), GFP_KERNEL);
-	sg_init_table(areq_ctx->nsg, nents);
-
-	for(int i = 0; i < nents - 1; i++){
-		memcpy(&areq_ctx->nsg[i], sg, sizeof(struct scatterlist));
-		sg = sg_next(sg);
-	}
-	sg_unmark_end(&areq_ctx->nsg[nents - 2]);
-
-	sg_set_buf(&areq_ctx->nsg[nents - 1], buf, buflen);
-	
-	req->src = areq_ctx->nsg;
+	authenc_tls_request_complete(req, err);
 }
 
 static int crypto_authenc_tls_encrypt(struct aead_request *req)
@@ -282,10 +242,6 @@ static int crypto_authenc_tls_encrypt(struct aead_request *req)
 	hash = (u8 *)ALIGN((unsigned long)hash + crypto_ahash_alignmask(auth),
 			   crypto_ahash_alignmask(auth) + 1);
 
-	/* extend src scatterlist to add tag and padding data */
-	authenc_tls_extend_src_sg(req, hash , crypto_aead_authsize(authenc) + 
-		crypto_aead_blocksize(authenc));
-
 	ahash_request_set_tfm(ahreq, auth);
 	ahash_request_set_crypt(ahreq, req->src, hash,
 				req->assoclen + req->cryptlen);
@@ -296,8 +252,8 @@ static int crypto_authenc_tls_encrypt(struct aead_request *req)
 	if (err)
 		return err;
 	
-	// scatterwalk_map_and_copy(hash, req->src, req->assoclen + req->cryptlen,
-	// 			 crypto_aead_authsize(authenc), 1);
+	scatterwalk_map_and_copy(hash, req->src, req->assoclen + req->cryptlen,
+				 crypto_aead_authsize(authenc), 1);
 	req->cryptlen += crypto_aead_authsize(authenc);
 
 	return crypto_authenc_tls_encrypt_data(req, aead_request_flags(req));
@@ -323,10 +279,10 @@ static void authenc_tls_verify_ahash_tail_done(void *data, int err)
 
 	if(err)
 		goto out;
-	
-	if (crypto_memneq(hash, ihash, authsize))
-		authenc_tls_request_complete(req, -EBADMSG);
 
+	if (crypto_memneq(hash, ihash, authsize)){
+		authenc_tls_request_complete(req, -EBADMSG);
+	}
 out:
 	authenc_tls_request_complete(req, err);
 }
@@ -356,9 +312,11 @@ static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 	padding_length += 1;
 	plain_length = req->cryptlen - authsize - padding_length;
 
+	/* tell caller the plaintext length */
+	req->cryptlen = plain_length;
+
 	/**
-	 * TLS CBC encryption mode involves encrypting after padding, it is not possible to
-	 * obtain the plaintext length in advance during decryption.
+	 * update plaintext length, get plaintext length after decryption of TLS CBC mode
 	 *  */ 
 	scatterwalk_map_and_copy(&plain_length, req->dst, req->assoclen - 1, 1, 1);
 
@@ -371,21 +329,12 @@ static int crypto_authenc_tls_verify_ahash_tail(struct aead_request *req,
 
 	ahash_request_set_callback(ahreq, aead_request_flags(req),
 				      authenc_tls_verify_ahash_tail_done, req);
-
 	err = crypto_ahash_digest(ahreq);
 	if(err)
 		return err;
 
 	if (crypto_memneq(hash, ihash, authsize))
 		return -EBADMSG;
-
-	/* tell caller the plaintext length */
-	req->cryptlen = plain_length;
-
-	// print_sg(req->dst, "PLAIN");
-	// printk("%p\n", ihash);
-	// print_hex_dump(KERN_INFO, "HASH", 2, 16,
-	// 		1, ihash, 64, 1);
 
 	return 0;
 }
@@ -397,8 +346,10 @@ static void authenc_tls_decrypt_data_done(void *data, int err)
 	if (err)
 		goto out;
 
+	err = crypto_authenc_tls_verify_ahash_tail(req, 0);
+
 out:
-	crypto_authenc_tls_verify_ahash_tail(req, err);
+	authenc_tls_request_complete(req, err);
 }
 
 
