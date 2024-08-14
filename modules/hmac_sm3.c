@@ -1,96 +1,128 @@
-#include <linux/init.h>
-#include <linux/module.h>
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Here's a sample kernel module showing the use of kprobes to dump a
+ * stack trace and selected registers when kernel_clone() is called.
+ *
+ * For more information on theory of operation of kprobes, see
+ * Documentation/trace/kprobes.rst
+ *
+ * You will see the trace data in /var/log/messages and on the console
+ * whenever kernel_clone() is invoked to create a new process.
+ */
+
+#define pr_fmt(fmt) "%s: " fmt, __func__
+
 #include <linux/kernel.h>
-#include <linux/crypto.h>
-#include <linux/err.h>
-#include <linux/scatterlist.h>
-#include <crypto/hash.h>
-#include <crypto/skcipher.h>
+#include <linux/module.h>
+#include <linux/kprobes.h>
 
+static char symbol[KSYM_NAME_LEN] = "kernel_clone";
+module_param_string(symbol, symbol, KSYM_NAME_LEN, 0644);
 
-#define SM4_BLOCK_SIZE  32
-#define HMAC_KEY_SIZE   32
+/* For each probe you need to allocate a kprobe structure */
+static struct kprobe kp = {
+	.symbol_name	= symbol,
+};
 
-static int __init hmac_sm4_init(void)
+/* kprobe pre_handler: called just before the probed instruction is executed */
+static int __kprobes handler_pre(struct kprobe *p, struct pt_regs *regs)
 {
-    struct crypto_ahash *tfm;
-    struct ahash_request *req;
-    struct scatterlist sg;
+#ifdef CONFIG_X86
+	pr_info("<%s> p->addr = 0x%p, ip = %lx, flags = 0x%lx\n",
+		p->symbol_name, p->addr, regs->ip, regs->flags);
+#endif
+#ifdef CONFIG_PPC
+	pr_info("<%s> p->addr = 0x%p, nip = 0x%lx, msr = 0x%lx\n",
+		p->symbol_name, p->addr, regs->nip, regs->msr);
+#endif
+#ifdef CONFIG_MIPS
+	pr_info("<%s> p->addr = 0x%p, epc = 0x%lx, status = 0x%lx\n",
+		p->symbol_name, p->addr, regs->cp0_epc, regs->cp0_status);
+#endif
+#ifdef CONFIG_ARM64
+	pr_info("<%s> p->addr = 0x%p, pc = 0x%lx, pstate = 0x%lx\n",
+		p->symbol_name, p->addr, (long)regs->pc, (long)regs->pstate);
+#endif
+#ifdef CONFIG_ARM
+	pr_info("<%s> p->addr = 0x%p, pc = 0x%lx, cpsr = 0x%lx\n",
+		p->symbol_name, p->addr, (long)regs->ARM_pc, (long)regs->ARM_cpsr);
+#endif
+#ifdef CONFIG_RISCV
+	pr_info("<%s> p->addr = 0x%p, pc = 0x%lx, status = 0x%lx\n",
+		p->symbol_name, p->addr, regs->epc, regs->status);
+#endif
+#ifdef CONFIG_S390
+	pr_info("<%s> p->addr, 0x%p, ip = 0x%lx, flags = 0x%lx\n",
+		p->symbol_name, p->addr, regs->psw.addr, regs->flags);
+#endif
+#ifdef CONFIG_LOONGARCH
+	pr_info("<%s> p->addr = 0x%p, era = 0x%lx, estat = 0x%lx\n",
+		p->symbol_name, p->addr, regs->csr_era, regs->csr_estat);
+#endif
 
-    uint8_t data[] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-        0x17, 0x01, 0x01, 0x00, 0x11, 
-        0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 
-        0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 
-        0x61,
-    };
-    uint8_t key[] = {
-        0x34, 0xd1, 0x8b, 0x85, 0xdf, 0xa7, 0x15, 0xdb, 
-        0xb9, 0x93, 0x2d, 0x16, 0x7e, 0x6f, 0xa3, 0xc4, 
-        0xdb, 0xe8, 0x4b, 0x73, 0xa1, 0x7b, 0x37, 0x92, 
-        0x91, 0x98, 0xa5, 0x65, 0x2b, 0x59, 0x4b, 0xe3, 
-    };
-
-    unsigned int data_len = sizeof(data);
-    unsigned char result[SM4_BLOCK_SIZE];
-    int ret;
-
-    // Allocate transformation context
-    tfm = crypto_alloc_ahash("hmac(sm3)", 0, 0);
-    if (IS_ERR(tfm)) {
-        pr_err("Failed to allocate transformation context\n");
-        return PTR_ERR(tfm);
-    }
-
-    // Allocate request
-    req = ahash_request_alloc(tfm, GFP_KERNEL);
-    if (!req) {
-        pr_err("Failed to allocate request\n");
-        ret = -ENOMEM;
-        goto out_free_tfm;
-    }
-
-    // Set the HMAC key
-    ret = crypto_ahash_setkey(tfm, key, HMAC_KEY_SIZE);
-    if (ret) {
-        pr_err("Failed to set key: %d\n", ret);
-        goto out_free_req;
-    }
-
-    // Set up scatterlist
-    sg_init_one(&sg, data, data_len);
-
-    // Set the data to be hashed
-    ahash_request_set_crypt(req, &sg, result, data_len);
-
-    // Perform hashing
-    ret = crypto_ahash_digest(req);
-    if (ret) {
-        pr_err("Failed to compute digest: %d\n", ret);
-        goto out_free_req;
-    }
-
-    // Print the result
-    pr_info("HMAC-SM4 result: ");
-    for (int i = 0; i < SM4_BLOCK_SIZE; i++)
-        pr_cont("%02x", result[i]);
-    pr_cont("\n");
-
-out_free_req:
-    ahash_request_free(req);
-out_free_tfm:
-    crypto_free_ahash(tfm);
-    return ret;
+	/* A dump_stack() here will give a stack backtrace */
+	return 0;
 }
 
-static void __exit hmac_sm4_exit(void)
+/* kprobe post_handler: called after the probed instruction is executed */
+static void __kprobes handler_post(struct kprobe *p, struct pt_regs *regs,
+				unsigned long flags)
 {
-    pr_info("HMAC-SM4 module exit\n");
+#ifdef CONFIG_X86
+	pr_info("<%s> p->addr = 0x%p, flags = 0x%lx\n",
+		p->symbol_name, p->addr, regs->flags);
+#endif
+#ifdef CONFIG_PPC
+	pr_info("<%s> p->addr = 0x%p, msr = 0x%lx\n",
+		p->symbol_name, p->addr, regs->msr);
+#endif
+#ifdef CONFIG_MIPS
+	pr_info("<%s> p->addr = 0x%p, status = 0x%lx\n",
+		p->symbol_name, p->addr, regs->cp0_status);
+#endif
+#ifdef CONFIG_ARM64
+	pr_info("<%s> p->addr = 0x%p, pstate = 0x%lx\n",
+		p->symbol_name, p->addr, (long)regs->pstate);
+#endif
+#ifdef CONFIG_ARM
+	pr_info("<%s> p->addr = 0x%p, cpsr = 0x%lx\n",
+		p->symbol_name, p->addr, (long)regs->ARM_cpsr);
+#endif
+#ifdef CONFIG_RISCV
+	pr_info("<%s> p->addr = 0x%p, status = 0x%lx\n",
+		p->symbol_name, p->addr, regs->status);
+#endif
+#ifdef CONFIG_S390
+	pr_info("<%s> p->addr, 0x%p, flags = 0x%lx\n",
+		p->symbol_name, p->addr, regs->flags);
+#endif
+#ifdef CONFIG_LOONGARCH
+	pr_info("<%s> p->addr = 0x%p, estat = 0x%lx\n",
+		p->symbol_name, p->addr, regs->csr_estat);
+#endif
 }
 
-module_init(hmac_sm4_init);
-module_exit(hmac_sm4_exit);
+static int __init kprobe_init(void)
+{
+	int ret;
+	kp.pre_handler = handler_pre;
+	kp.post_handler = handler_post;
 
+	ret = register_kprobe(&kp);
+	if (ret < 0) {
+		pr_err("register_kprobe failed, returned %d\n", ret);
+		return ret;
+	}
+	pr_info("Planted kprobe at %p\n", kp.addr);
+	return 0;
+}
+
+static void __exit kprobe_exit(void)
+{
+	unregister_kprobe(&kp);
+	pr_info("kprobe at %p unregistered\n", kp.addr);
+}
+
+module_init(kprobe_init)
+module_exit(kprobe_exit)
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("HMAC-SM4 Example");
-MODULE_AUTHOR("Your Name");

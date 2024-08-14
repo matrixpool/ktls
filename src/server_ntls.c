@@ -18,6 +18,9 @@ int main() {
     SSL_CTX *ctx = NULL;
     SSL *ssl = NULL;
     int listen_sock, conn_sock, ret, flags1, flags2;
+    pid_t pid;
+
+    printf("server process pid: %d\n", getpid());
 
     //双证书相关server的各种定义
     meth = NTLS_server_method();
@@ -25,6 +28,7 @@ int main() {
     ctx = SSL_CTX_new(meth);
     //允许使用国密双证书功能
     SSL_CTX_enable_ntls(ctx);
+    SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
 
     flags1 = SSL_CTX_get_options(ctx);
     flags2 = SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
@@ -93,11 +97,11 @@ int main() {
         } else {
             char buffer[5001] = {0}, buf1[5000] = {0};
             memset(buf1, 0x62, sizeof(buf1));
-            while(1){
+            // while(1){
                 SSL_read(ssl, buffer, sizeof(buffer));
-                // printf("receive data: %s\n", buffer);
-                SSL_write(ssl, buf1, sizeof(buf1));
-            }
+                printf("receive data: %s\n", buffer);
+                // SSL_write(ssl, buf1, sizeof(buf1));
+            // }
         }
 
         // sleep(10);
