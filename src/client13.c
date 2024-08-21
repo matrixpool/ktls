@@ -4,10 +4,15 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-int main() {
+int main(int argc, char *argv[]) {
     SSL_CTX *ctx;
     SSL *ssl;
     int sock;
+
+    if(argc <= 2){
+        printf("please input tls server addr\n");
+        return 0;
+    }
 
     SSL_library_init();
     OpenSSL_add_all_algorithms();
@@ -19,17 +24,21 @@ int main() {
         return 1;
     }
 
-    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
-    // SSL_CTX_enable_sm_tls13_strict(ctx);
-    SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
-    // SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
-    // SSL_CTX_set_ciphersuites(ctx, "ECDHE-ECDSA-AES128-GCM-SHA256");
+    SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
 
-    // SSL_CTX_set_cipher_list(ctx, "SM4-GCM");
-    // SSL_CTX_enable_sm_tls13_strict(ctx);
-    // SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
-    // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
+    if(strncmp(argv[2], "aes", strlen("aes")) == 0){
+        SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
+    }
+    else{
+        SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
+    }
+
+    SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+
+    SSL_CTX_enable_sm_tls13_strict(ctx);
+    SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
+
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("socket");
@@ -39,13 +48,39 @@ int main() {
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(4433); // 使用非标准端口 4433
-    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-    // inet_pton(AF_INET, "192.168.43.128", &addr.sin_addr);
+    inet_pton(AF_INET, argv[1], &addr.sin_addr);
 
     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("connect");
         return 1;
     }
+
+    // SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    // SSL_CTX_enable_sm_tls13_strict(ctx);
+
+    // SSL_CTX_set_ciphersuites(ctx, "TLS_AES_128_GCM_SHA256");
+    // SSL_CTX_set_ciphersuites(ctx, "ECDHE-ECDSA-AES128-GCM-SHA256");
+
+    // SSL_CTX_set_cipher_list(ctx, "SM4-GCM");
+    // SSL_CTX_enable_sm_tls13_strict(ctx);
+    // SSL_CTX_set_ciphersuites(ctx, "TLS_SM4_GCM_SM3");
+    // SSL_CTX_set1_curves_list(ctx, "SM2:X25519:prime256v1");
+    // sock = socket(AF_INET, SOCK_STREAM, 0);
+    // if (sock < 0) {
+    //     perror("socket");
+    //     return 1;
+    // }
+
+    // struct sockaddr_in addr;
+    // addr.sin_family = AF_INET;
+    // addr.sin_port = htons(4433); // 使用非标准端口 4433
+    // inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+    // // inet_pton(AF_INET, "192.168.43.128", &addr.sin_addr);
+
+    // if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    //     perror("connect");
+    //     return 1;
+    // }
 
     ssl = SSL_new(ctx);
     SSL_set_fd(ssl, sock);

@@ -5,6 +5,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <sys/types.h>
+#include <fcntl.h>
 #include "util.h"
 
 #define SERVER_SIGN_CERT "/ktls/certs/sign.crt"
@@ -76,31 +77,37 @@ int main() {
         long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
         printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
         if (SSL_accept(ssl) <= 0) {
-            // unsigned char random[64] = {0}, mkey[128] = {0};
-            // size_t len;
-            // len = SSL_get_client_random(ssl, random, 64);
-            // if(len > 0){
-            //     hex_dump(random, len, "CLIENT RANDOM");
-            // }
-            // memset(random, 0, 64);
-            // len = SSL_get_server_random(ssl, random, 64);
-            // if(len > 0){
-            //     hex_dump(random, len, "SERVER RANDOM");
-            // }
-            
-            // SSL_SESSION *session = SSL_get_session(ssl);
-            // SSL_SESSION_get_master_key(session, mkey, 128);
-            // if(len > 0){
-            //     hex_dump(mkey, 128, "MASTER KEY");
-            // }
+            unsigned char mkey[SSL_MAX_MASTER_KEY_LENGTH]= {0}, crnd[16] = {0}, srnd[16] = {0};
+
+            SSL_SESSION *session = SSL_get_session(ssl);
+            SSL_SESSION_get_master_key(session, mkey, SSL_MAX_MASTER_KEY_LENGTH);
+            SSL_get_client_random(ssl, crnd, 16);
+            SSL_get_server_random(ssl, srnd, 16);
+
+            hex_dump(mkey, SSL_MAX_MASTER_KEY_LENGTH, "MASTER KEY");
+            hex_dump(crnd, 16, "CLIENT RND");
+            hex_dump(srnd, 16, "SERVER RND");
             ERR_print_errors_fp(stderr);
         } else {
-            char buffer[5001] = {0}, buf1[5000] = {0};
-            memset(buf1, 0x62, sizeof(buf1));
+            char buf1[33] = {0}, buf2[32] = {0};
+            memset(buf2, 0x62, sizeof(buf2));
+
+            // unsigned char mkey[SSL_MAX_MASTER_KEY_LENGTH]= {0}, crnd[16] = {0}, srnd[16] = {0};
+
+            // SSL_SESSION *session = SSL_get_session(ssl);
+            // SSL_SESSION_get_master_key(session, mkey, SSL_MAX_MASTER_KEY_LENGTH);
+            // SSL_get_client_random(ssl, crnd, 16);
+            // SSL_get_server_random(ssl, srnd, 16);
+
+            // hex_dump(mkey, SSL_MAX_MASTER_KEY_LENGTH, "MASTER KEY");
+            // hex_dump(crnd, 16, "CLIENT RND");
+            // hex_dump(srnd, 16, "SERVER RND");
+            // ERR_print_errors_fp(stderr);
+
             // while(1){
-                SSL_read(ssl, buffer, sizeof(buffer));
-                printf("receive data: %s\n", buffer);
-                // SSL_write(ssl, buf1, sizeof(buf1));
+                SSL_read(ssl, buf1, sizeof(buf1));
+                printf("receive data: %s\n", buf1);
+                SSL_write(ssl, buf2, sizeof(buf2));
             // }
         }
 

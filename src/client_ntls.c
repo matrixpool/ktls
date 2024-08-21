@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <openssl/ssl.h>
@@ -60,38 +61,43 @@ int main(int argc, char *argv[]) {
     SSL_set_fd(ssl, sock);
 
     if (SSL_connect(ssl) <= 0) {
-        // unsigned char random[64] = {0}, mkey[128] = {0};
-        // size_t len;
-        // len = SSL_get_client_random(ssl, random, 64);
-        // if(len > 0){
-        //     hex_dump(random, len, "CLIENT RANDOM");
-        // }
-        // memset(random, 0, 64);
-        // len = SSL_get_server_random(ssl, random, 64);
-        // if(len > 0){
-        //     hex_dump(random, len, "SERVER RANDOM");
-        // }
-        
-        // SSL_SESSION *session = SSL_get_session(ssl);
-        // SSL_SESSION_get_master_key(session, mkey, 128);
-        // if(len > 0){
-        //     hex_dump(mkey, 128, "MASTER KEY");
-        // }
+        unsigned char mkey[SSL_MAX_MASTER_KEY_LENGTH]= {0}, crnd[16] = {0}, srnd[16] = {0};
+
+        SSL_SESSION *session = SSL_get_session(ssl);
+        SSL_SESSION_get_master_key(session, mkey, SSL_MAX_MASTER_KEY_LENGTH);
+        SSL_get_client_random(ssl, crnd, 16);
+        SSL_get_server_random(ssl, srnd, 16);
+
+        hex_dump(mkey, SSL_MAX_MASTER_KEY_LENGTH, "MASTER KEY");
+        hex_dump(crnd, 16, "CLIENT RND");
+        hex_dump(srnd, 16, "SERVER RND");
         ERR_print_errors_fp(stderr);
     } else {
-        char buf[17] = {0}, buf1[5001] = {0};
-        int err;
-        long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
-        long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
-        printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
+        char buf[32] = {0}, buf1[33] = {0};
+        unsigned char mkey[SSL_MAX_MASTER_KEY_LENGTH]= {0}, crnd[16] = {0}, srnd[16] = {0};
+
+        int err, count = 1;
+        // long int is_ktls_send = BIO_get_ktls_send(SSL_get_wbio(ssl));
+        // long int is_ktls_recv = BIO_get_ktls_recv(SSL_get_rbio(ssl));
+        // printf("ktls send: %ld. ktls recv: %ld\n", is_ktls_send, is_ktls_recv);
         memset(buf, 0x61, sizeof(buf));
-        // while(1){
+
+        // SSL_SESSION *session = SSL_get_session(ssl);
+        // SSL_SESSION_get_master_key(session, mkey, SSL_MAX_MASTER_KEY_LENGTH);
+        // SSL_get_client_random(ssl, crnd, 16);
+        // SSL_get_server_random(ssl, srnd, 16);
+
+        // hex_dump(mkey, SSL_MAX_MASTER_KEY_LENGTH, "MASTER KEY");
+        // hex_dump(crnd, 16, "CLIENT RND");
+        // hex_dump(srnd, 16, "SERVER RND");
+
+        // while(count--){
             SSL_write(ssl, buf, sizeof(buf));
-        //     err = SSL_read(ssl, buf1, sizeof(buf1));
+            err = SSL_read(ssl, buf1, sizeof(buf1));
+            printf("Received from server: %s\n", buf1);
         // }
-        // printf("Received from server: %s\n", buf1);
     }
-        sleep(10000);
+        // sleep(10000);
 
     SSL_shutdown(ssl);
     SSL_free(ssl);
